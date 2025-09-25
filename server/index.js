@@ -2,6 +2,7 @@ const express = require("express");
 const path = require("path");
 const dotenv = require("dotenv");
 const authRouter = require("./routes/authRouter");
+const complaintRouter = require("./routes/complaintRouter");
 const ConnectDB = require("./lib/db");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
@@ -24,6 +25,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api/auth", authRouter);
+app.use("/api/complaints", complaintRouter);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../client/dist")));
