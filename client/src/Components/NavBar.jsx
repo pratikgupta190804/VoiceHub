@@ -3,12 +3,14 @@ import { useStoreAuth } from "../store/useAuthStore";
 import { LogOut, MessageSquare, Settings, User } from "lucide-react";
 
 const NavBar = () => {
-  const { logout, authUser, showNavBar } = useStoreAuth();
+  const { logout, authUser, showNavBar, isCheckingAuth } = useStoreAuth();
+  
 
   return showNavBar ? (
     <header
-      className="bg-gray-900 border-b border-gray-700 fixed w-full top-0 z-40 
+      className=" border-b border-gray-700 fixed w-full top-0 z-40 
     backdrop-blur-lg shadow-lg"
+    style={{ backgroundColor: "#0f70cd " }}
     >
       <div className="container mx-auto px-4 h-16">
         <div className="flex items-center justify-between h-full">
@@ -20,19 +22,20 @@ const NavBar = () => {
               <div className="size-9 rounded-lg bg-blue-600 flex items-center justify-center">
                 <MessageSquare className="w-5 h-5 text-white" />
               </div>
-              <h1 className="text-lg font-bold text-white">Chit Chat</h1>
+              <h1 className="text-lg font-bold text-white">Silent Shout</h1>
             </Link>
           </div>
 
           <div className="flex items-center gap-2">
             <Link
               to={"/settings"}
-              className="bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 
+              className=" hover:bg-gray-700 text-white border border-gray-600 
               px-4 py-2 rounded-lg gap-2 transition-all duration-200 flex items-center
               hover:shadow-lg"
+              style={{backgroundColor: '#ec8b0a'}}
             >
-              <Settings className="w-4 h-4" />
-              <span className="hidden sm:inline">Settings</span>
+              <Settings className="w-4 h-4 text-black" />
+              <span className="hidden sm:inline text-black">Settings</span>
             </Link>
 
             {authUser ? (
@@ -42,9 +45,10 @@ const NavBar = () => {
                   className="bg-gray-800 hover:bg-gray-700 text-white border border-gray-600 
                 px-4 py-2 rounded-lg gap-2 transition-all duration-200 flex items-center
                 hover:shadow-lg"
+                style={{backgroundColor: '#ec8b0a'}}
                 >
-                  <User className="size-5" />
-                  <span className="hidden sm:inline">Profile</span>
+                  <User className="size-5   text-black" />
+                  <span className="hidden sm:inline  text-black">Profile</span>
                 </Link>
 
                 <button
@@ -57,7 +61,7 @@ const NavBar = () => {
                   <span className="hidden sm:inline">Logout</span>
                 </button>
               </>
-            ) : (
+            ) : !isCheckingAuth ? (
               <>
                 <Link
                   to={"/signup"}
@@ -76,6 +80,8 @@ const NavBar = () => {
                   <span className="hidden sm:inline">Login</span>
                 </Link>
               </>
+            ) : (
+              <div className="w-20 h-10 bg-gray-700 rounded-lg animate-pulse"></div>
             )}
           </div>
         </div>
