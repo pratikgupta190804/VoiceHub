@@ -3,9 +3,11 @@ const Complaint = require("../models/Complaint");
 const axios = require("axios");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const twitterService = require("../services/twitterService");
+const { TwitterMediaUploader } = require("../twitter-media-uploader");
 
-// Initialize Gemini AI
+// Initialize Gemini AI and Twitter Media Uploader
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const mediaUploader = new TwitterMediaUploader();
 
 // Logger for complaint controller
 class ComplaintLogger {
@@ -174,43 +176,52 @@ async function postToTwitterWithService(tweetText, mediaUrls = []) {
     
     // Upload media first if provided
     if (mediaUrls && mediaUrls.length > 0) {
-      logger.info('Processing media for Twitter upload', { mediaCount: mediaUrls.length });
+      logger.info('Processing media for Twitter upload', { 
+        mediaCount: mediaUrls.length,
+        mediaUrls: mediaUrls
+      });
       
-      const imageUrls = mediaUrls.filter(url => 
-        url.toLowerCase().includes('.jpg') || 
-        url.toLowerCase().includes('.jpeg') || 
-        url.toLowerCase().includes('.png') ||
-        url.toLowerCase().includes('.webp')
-      );
+      const imageUrls = mediaUrls.filter(url => {
+        const lowerUrl = url.toLowerCase();
+        return lowerUrl.includes('.jpg') || 
+               lowerUrl.includes('.jpeg') || 
+               lowerUrl.includes('.png') ||
+               lowerUrl.includes('.webp') ||
+               lowerUrl.includes('.avif') ||
+               lowerUrl.includes('.gif');
+      });
       
-      logger.debug('Filtered image URLs', { imageCount: imageUrls.length });
+      logger.debug('Filtered image URLs', { 
+        imageCount: imageUrls.length, 
+        totalUrls: mediaUrls.length,
+        originalUrls: mediaUrls,
+        filteredUrls: imageUrls
+      });
       
-      // Process up to 4 images (Twitter limit)
-      for (const mediaUrl of imageUrls.slice(0, 4)) {
-        try {
-          logger.debug('Downloading image for upload', { url: mediaUrl });
+      try {
+        // Use the dedicated media uploader for better handling
+        logger.info('Uploading images to Twitter using dedicated uploader', { urls: imageUrls });
+        const uploadResults = await mediaUploader.uploadMultipleMedia(imageUrls.slice(0, 4)); // Twitter allows max 4 images
+        
+        // Extract just the media IDs from successful uploads
+        mediaIds = uploadResults
+          .filter(result => result.success)
+          .map(result => result.mediaId);
           
-          // Download image from URL
-          const imageResponse = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
-          const imageBuffer = Buffer.from(imageResponse.data);
-          
-          logger.debug('Image downloaded, uploading to Twitter', { 
-            url: mediaUrl, 
-            size: imageBuffer.length 
-          });
-          
-          // Upload to Twitter using the service
-          const mediaId = await twitterService.uploadMedia(imageBuffer, 'image/jpeg');
-          mediaIds.push(mediaId);
-          
-          logger.info('Media uploaded successfully to Twitter', { mediaId, url: mediaUrl });
-        } catch (error) {
-          logger.error('Failed to upload media to Twitter', { 
-            error: error.message, 
-            url: mediaUrl 
-          });
-          // Continue without this media - don't fail the entire process
-        }
+        logger.info('Successfully uploaded media to Twitter', { 
+          uploadResults,
+          extractedMediaIds: mediaIds,
+          uploadedCount: mediaIds.length 
+        });
+      } catch (mediaError) {
+        logger.error('Failed to upload media with dedicated uploader', { 
+          error: mediaError.message,
+          stack: mediaError.stack,
+          urls: imageUrls
+        });
+        // Continue with text-only tweet if media upload fails
+        logger.warn('Proceeding with text-only tweet due to media upload failure');
+        mediaIds = [];
       }
     }
 
