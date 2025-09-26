@@ -10,10 +10,19 @@
     "server": "npm run start --prefix server",
     "client": "npm run dev --prefix client"
   },
-  "keywords": ["chat", "real-time", "socket.io", "react", "node.js"],
+  "keywords": [
+    "chat",
+    "real-time",
+    "socket.io",
+    "react",
+    "node.js"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "concurrently": "^8.2.0"
+  },
+  "dependencies": {
+    "react-icons": "^5.5.0"
   }
 }

@@ -13,10 +13,9 @@ dotenv.config();
 
 app.use(
   cors({
-    origin:
-      process.env.NODE_ENV === "production"
-        ? process.env.CLIENT_URL
-        : "http://localhost:5173",
+    origin: process.env.NODE_ENV === "production" 
+      ? process.env.CLIENT_URL 
+      : ["http://localhost:5173", "http://localhost:5174"], // Support both default and alternative ports
     credentials: true,
   })
 );
