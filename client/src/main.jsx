@@ -7,6 +7,7 @@ import LoginPage from "./Pages/LoginPage.jsx";
 import SignupPage from "./Pages/SignupPage.jsx";
 import SettingPage from "./Pages/SettingPage.jsx";
 import MapView from "./Pages/MapView.jsx";
+import ComplaintFormPage from "./Pages/ComplaintFormPage.jsx";
 
 const router = createBrowserRouter([
   {
@@ -18,6 +19,7 @@ const router = createBrowserRouter([
       { path: "/login", element: <LoginPage /> },
       { path: "/signup", element: <SignupPage /> },
       { path: "/settings", element: <SettingPage /> },
+      { path: "/complaint", element: <ComplaintFormPage /> },
     ],
   },
 ]);

@@ -13,10 +13,9 @@ dotenv.config();
 
 app.use(
   cors({
-    origin:
-      process.env.NODE_ENV === "production"
-        ? process.env.CLIENT_URL
-        : "http://localhost:5173",
+    origin: process.env.NODE_ENV === "production" 
+      ? process.env.CLIENT_URL 
+      : ["http://localhost:5173", "http://localhost:5174"], // Support both default and alternative ports
     credentials: true,
   })
 );
@@ -25,7 +24,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api/auth", authRouter);
-app.use("/api/complaint", complaintRouter);
+app.use("/api/complaints", complaintRouter);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../client/dist")));

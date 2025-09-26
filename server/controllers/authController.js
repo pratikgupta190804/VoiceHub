@@ -1,14 +1,8 @@
 cloudinary = require("../lib/cloudinary");
-const {
-  generateState,
-  generateCodeVerifier,
-  Google,
-  decodeIdToken,
-} = require("arctic");
+
 const { generateToken } = require("../lib/generateToken");
 const user = require("../models/user");
 const bcrypt = require("bcryptjs");
-const { google } = require("../lib/google");
 
 exports.postLogin = async (req, res) => {
   const { email, password } = req.body;

@@ -11,7 +11,7 @@ export const useComplaintStore = create((set, get) => ({
   getAllComplaints: async () => {
     set({ isFetchingComplains: true });
     try {
-      const res = await axiosInstance.get("/complaint/getallcomplaints");
+      const res = await axiosInstance.get("/complaints/getallcomplaints");
       // Access res.data.data since controller sends {data: allComplaints}
       const complaints = res.data.data || [];
       set({ allcomplaints: complaints, isFetchingComplains: false });
@@ -25,7 +25,7 @@ export const useComplaintStore = create((set, get) => ({
   upvoteComplaint: async (complaintId) => {
     set({ isVoting: true });
     try {
-      const res = await axiosInstance.patch(`/complaint/${complaintId}/upvote`);
+      const res = await axiosInstance.patch(`/complaints/${complaintId}/upvote`);
       if (res.data.success) {
         // Update local state
         const { allcomplaints } = get();
@@ -53,7 +53,7 @@ export const useComplaintStore = create((set, get) => ({
     set({ isVoting: true });
     try {
       const res = await axiosInstance.patch(
-        `/complaint/${complaintId}/downvote`
+        `/complaints/${complaintId}/downvote`
       );
       if (res.data.success) {
         // Update local state
@@ -82,7 +82,7 @@ export const useComplaintStore = create((set, get) => ({
     set({ isCommenting: true });
     try {
       const res = await axiosInstance.post(
-        `/complaint/${complaintId}/comment`,
+        `/complaints/${complaintId}/comment`,
         {
           text: commentText,
         }
