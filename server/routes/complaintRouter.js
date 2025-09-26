@@ -1,5 +1,5 @@
 const express = require('express');
-const { submitComplaint, getUserComplaints, getComplaintById, healthCheck } = require('../controllers/complaintController');
+const { submitComplaint, getUserComplaints, getComplaintById, healthCheck, detectAI } = require('../controllers/complaintController');
 const { checkUser } = require('../middlewares/checkUser');
 const uploadMemory = require('../middlewares/multerUpload');
 
@@ -7,6 +7,9 @@ const complaintRouter = express.Router();
 
 // Health check endpoint (no auth required)
 complaintRouter.get('/health', healthCheck);
+
+// AI Detection endpoint for frontend validation
+complaintRouter.post('/detect-ai', checkUser, uploadMemory.array('media', 10), detectAI);
 
 // Submit a new complaint with multiple media files
 complaintRouter.post('/submit', checkUser, uploadMemory.array('media', 10), submitComplaint);

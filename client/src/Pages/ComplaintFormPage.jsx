@@ -7,6 +7,8 @@ import {
   Camera,
   Video,
   AlertTriangle,
+  Shield,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { axiosInstance } from "../lib/axios";
@@ -20,6 +22,9 @@ const ComplaintFormPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [previewItem, setPreviewItem] = useState(null);
+  const [aiDetectionResults, setAiDetectionResults] = useState(null);
+  const [showAiWarning, setShowAiWarning] = useState(false);
+  const [isCheckingAI, setIsCheckingAI] = useState(false);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -113,7 +118,71 @@ const ComplaintFormPage = () => {
     setPreviewItem(null);
   };
 
-  // Handle form submission
+  // Check for AI-generated content
+  const checkForAIContent = async () => {
+    console.log("🤖 [FRONTEND] Starting AI detection check...");
+    setIsCheckingAI(true);
+    setAiDetectionResults(null);
+    setShowAiWarning(false);
+
+    try {
+      const formData = new FormData();
+
+      // Append each file to the form data
+      mediaFiles.forEach((mediaFile) => {
+        formData.append("media", mediaFile.file);
+      });
+
+      console.log(
+        `🤖 [FRONTEND] Checking ${mediaFiles.length} files for AI content...`
+      );
+
+      const response = await axiosInstance.post(
+        "/complaints/detect-ai",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+          timeout: 120000, // 2 minute timeout for AI detection
+        }
+      );
+
+      console.log("🤖 [FRONTEND] AI detection response:", response.data);
+      setAiDetectionResults(response.data);
+
+      if (response.data.hasAIContent) {
+        console.log("⚠️ [FRONTEND] AI content detected, showing warning");
+        setShowAiWarning(true);
+        return false; // Block submission
+      } else {
+        console.log(
+          "✅ [FRONTEND] No AI content detected, allowing submission"
+        );
+        return true; // Allow submission
+      }
+    } catch (error) {
+      console.error("❌ [FRONTEND] AI detection error:", error);
+
+      // If AI detection fails, show error but allow user to choose
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "AI detection service unavailable";
+
+      toast.error(`AI detection failed: ${errorMessage}`);
+
+      // For now, allow submission if AI detection fails (graceful degradation)
+      console.log(
+        "⚠️ [FRONTEND] AI detection failed, allowing submission to proceed"
+      );
+      return true;
+    } finally {
+      setIsCheckingAI(false);
+    }
+  };
+
+  // Handle form submission with AI detection
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -125,6 +194,21 @@ const ComplaintFormPage = () => {
       return toast.error("Please provide a location");
     }
 
+    // Step 1: Check for AI-generated content
+    console.log("🔍 [FRONTEND] Step 1: Checking for AI-generated content...");
+    const canProceed = await checkForAIContent();
+
+    if (!canProceed) {
+      console.log(
+        "🚫 [FRONTEND] Submission blocked due to AI content detection"
+      );
+      return; // Stop here if AI content is detected
+    }
+
+    // Step 2: Proceed with normal submission if AI check passed
+    console.log(
+      "✅ [FRONTEND] Step 2: AI check passed, proceeding with submission..."
+    );
     setIsLoading(true);
 
     try {
@@ -163,6 +247,8 @@ const ComplaintFormPage = () => {
       setDescription("");
       setLocation("");
       setLocationType("manual");
+      setAiDetectionResults(null);
+      setShowAiWarning(false);
 
       // Navigate to home page
       navigate("/");
@@ -343,10 +429,15 @@ const ComplaintFormPage = () => {
         <div>
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || isCheckingAI}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-300 flex items-center justify-center"
           >
-            {isLoading ? (
+            {isCheckingAI ? (
+              <>
+                <Shield size={18} className="animate-pulse mr-2" />
+                Checking for AI content...
+              </>
+            ) : isLoading ? (
               <>
                 <Loader size={18} className="animate-spin mr-2" />
                 Submitting...
@@ -387,6 +478,76 @@ const ComplaintFormPage = () => {
               />
             )}
             <p className="text-white text-sm mt-2">{previewItem.name}</p>
+          </div>
+        </div>
+      )}
+
+      {/* AI Content Warning Modal */}
+      {showAiWarning && aiDetectionResults && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <AlertTriangle className="text-red-500 mr-3" size={24} />
+              <h2 className="text-lg font-bold text-red-700">
+                AI Generated Content Detected
+              </h2>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-gray-700 mb-3">
+                Our system has detected that some of your uploaded files may
+                contain AI-generated content. To maintain authenticity, only
+                original content is allowed.
+              </p>
+
+              <div className="bg-red-50 p-3 rounded-md mb-3">
+                <p className="text-sm text-red-800 font-medium">
+                  Detection Results:
+                </p>
+                <ul className="text-sm text-red-700 mt-1">
+                  <li>
+                    • {aiDetectionResults.aiDetectedCount} of{" "}
+                    {aiDetectionResults.totalFiles} files flagged as
+                    AI-generated
+                  </li>
+                  {aiDetectionResults.files.map(
+                    (file, index) =>
+                      file.isAIGenerated && (
+                        <li key={index} className="ml-2">
+                          • {file.filename}: {Math.round(file.confidence * 100)}
+                          % AI confidence
+                        </li>
+                      )
+                  )}
+                </ul>
+              </div>
+
+              <p className="text-gray-600 text-sm">
+                Please remove the flagged files and upload only original, non-AI
+                generated content.
+              </p>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowAiWarning(false);
+                  setAiDetectionResults(null);
+                }}
+                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                I'll Upload Different Files
+              </button>
+              <button
+                onClick={() => {
+                  setShowAiWarning(false);
+                  setAiDetectionResults(null);
+                }}
+                className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,13 +1,15 @@
 const cloudinary = require("../lib/cloudinary");
-const Complaint = require("../models/Complaint");
+const Complaint = require("../models/complaint");
 const axios = require("axios");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const twitterService = require("../services/twitterService");
 const {TwitterMediaUploader} = require("../services/twitter-media-uploader");
+const AIDetectionService = require("../services/ai-detection-service");
 
-// Initialize Gemini AI and Twitter Media Uploader
+// Initialize Gemini AI, Twitter Media Uploader, and AI Detection Service
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const mediaUploader = new TwitterMediaUploader();
+const aiDetectionService = new AIDetectionService();
 
 // Convert URL to Base64
 async function urlToBase64(url) {
@@ -463,6 +465,172 @@ exports.getComplaintById = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch complaint",
+      error: error.message
+    });
+  }
+};
+
+// AI Detection endpoint for frontend validation
+exports.detectAI = async (req, res) => {
+  console.log("🤖 [AI DETECTION] Frontend AI detection request received");
+  
+  try {
+    // Check if files were uploaded
+    if (!req.files || req.files.length === 0) {
+      console.log("❌ [AI DETECTION] No files provided for AI detection");
+      return res.status(400).json({
+        success: false,
+        message: "No files provided for AI detection"
+      });
+    }
+
+    console.log(`📁 [AI DETECTION] Processing ${req.files.length} files for AI detection`);
+
+    // Upload files to Cloudinary to get URLs for AI detection
+    const uploadPromises = req.files.map(async (file, index) => {
+      console.log(`☁️ [AI DETECTION] Uploading file ${index + 1} to Cloudinary...`);
+      
+      const result = await cloudinary.uploader.upload_stream(
+        {
+          resource_type: file.mimetype.startsWith('video/') ? 'video' : 'image',
+          folder: 'temp-ai-detection',
+          transformation: file.mimetype.startsWith('image/') ? [
+            { quality: 'auto:good' },
+            { fetch_format: 'auto' }
+          ] : undefined
+        },
+        (error, result) => {
+          if (error) {
+            console.log(`❌ [AI DETECTION] Cloudinary error for file ${index + 1}:`, error);
+            throw error;
+          }
+          return result;
+        }
+      );
+
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            resource_type: file.mimetype.startsWith('video/') ? 'video' : 'image',
+            folder: 'temp-ai-detection',
+            transformation: file.mimetype.startsWith('image/') ? [
+              { quality: 'auto:good' },
+              { fetch_format: 'auto' }
+            ] : undefined
+          },
+          (error, result) => {
+            if (error) {
+              console.log(`❌ [AI DETECTION] Cloudinary error for file ${index + 1}:`, error);
+              reject(error);
+            } else {
+              console.log(`✅ [AI DETECTION] File ${index + 1} uploaded to Cloudinary: ${result.secure_url}`);
+              resolve({
+                url: result.secure_url,
+                public_id: result.public_id,
+                type: file.mimetype.startsWith('video/') ? 'video' : 'image',
+                filename: file.originalname
+              });
+            }
+          }
+        );
+        stream.end(file.buffer);
+      });
+    });
+
+    console.log("⏳ [AI DETECTION] Waiting for all files to upload to Cloudinary...");
+    const uploadedFiles = await Promise.all(uploadPromises);
+    console.log(`✅ [AI DETECTION] All ${uploadedFiles.length} files uploaded successfully`);
+
+    // Run AI detection on each uploaded file
+    const detectionPromises = uploadedFiles.map(async (file, index) => {
+      console.log(`🔍 [AI DETECTION] Running AI detection on file ${index + 1}: ${file.filename}`);
+      
+      const detection = await aiDetectionService.detectAIContent(
+        file.url,
+        file.type,
+        ['aiornot'] // Use only AI or Not for faster response
+      );
+
+      console.log(`🔍 [AI DETECTION] File ${index + 1} detection result:`, {
+        filename: file.filename,
+        isAI: detection.isAIGenerated,
+        confidence: detection.confidence
+      });
+
+      return {
+        filename: file.filename,
+        url: file.url,
+        public_id: file.public_id,
+        type: file.type,
+        detection: detection
+      };
+    });
+
+    console.log("⏳ [AI DETECTION] Running AI detection on all files...");
+    const detectionResults = await Promise.all(detectionPromises);
+    console.log(`✅ [AI DETECTION] AI detection completed for all ${detectionResults.length} files`);
+
+    // Analyze results
+    const aiDetectedFiles = detectionResults.filter(result => 
+      result.detection.success && result.detection.isAIGenerated
+    );
+
+    const highConfidenceAI = aiDetectedFiles.filter(result => 
+      result.detection.confidence > 0.7
+    );
+
+    const hasAIContent = aiDetectedFiles.length > 0;
+    const hasHighConfidenceAI = highConfidenceAI.length > 0;
+
+    console.log(`📊 [AI DETECTION] Analysis summary:`, {
+      totalFiles: detectionResults.length,
+      aiDetectedFiles: aiDetectedFiles.length,
+      highConfidenceAI: highConfidenceAI.length,
+      hasAIContent,
+      hasHighConfidenceAI
+    });
+
+    // Clean up temporary files from Cloudinary
+    console.log("🧹 [AI DETECTION] Cleaning up temporary files from Cloudinary...");
+    const cleanupPromises = uploadedFiles.map(file => 
+      cloudinary.uploader.destroy(file.public_id, { 
+        resource_type: file.type === 'video' ? 'video' : 'image' 
+      })
+    );
+    await Promise.all(cleanupPromises);
+    console.log("✅ [AI DETECTION] Temporary files cleaned up");
+
+    // Return results to frontend
+    const response = {
+      success: true,
+      hasAIContent: hasAIContent,
+      hasHighConfidenceAI: hasHighConfidenceAI,
+      totalFiles: detectionResults.length,
+      aiDetectedCount: aiDetectedFiles.length,
+      highConfidenceCount: highConfidenceAI.length,
+      files: detectionResults.map(result => ({
+        filename: result.filename,
+        type: result.type,
+        isAIGenerated: result.detection.isAIGenerated,
+        confidence: result.detection.confidence,
+        success: result.detection.success
+      })),
+      recommendation: hasHighConfidenceAI ? 'BLOCK' : hasAIContent ? 'FLAG' : 'ALLOW'
+    };
+
+    console.log("📤 [AI DETECTION] Sending response to frontend:", {
+      hasAIContent: response.hasAIContent,
+      recommendation: response.recommendation,
+      fileCount: response.totalFiles
+    });
+
+    res.json(response);
+
+  } catch (error) {
+    console.error("❌ [AI DETECTION] Error in AI detection endpoint:", error);
+    res.status(500).json({
+      success: false,
+      message: "AI detection failed",
       error: error.message
     });
   }
