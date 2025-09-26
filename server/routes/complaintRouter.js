@@ -1,12 +1,12 @@
 const express = require('express');
-const { submitComplaint, getUserComplaints, getComplaintById, getHealthCheck } = require('../controllers/complaintController');
+const { submitComplaint, getUserComplaints, getComplaintById, healthCheck } = require('../controllers/complaintController');
 const { checkUser } = require('../middlewares/checkUser');
 const uploadMemory = require('../middlewares/multerUpload');
 
 const complaintRouter = express.Router();
 
 // Health check endpoint (no auth required)
-complaintRouter.get('/health', getHealthCheck);
+complaintRouter.get('/health', healthCheck);
 
 // Submit a new complaint with multiple media files
 complaintRouter.post('/submit', checkUser, uploadMemory.array('media', 10), submitComplaint);

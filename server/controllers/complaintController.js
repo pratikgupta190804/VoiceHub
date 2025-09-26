@@ -3,184 +3,123 @@ const Complaint = require("../models/Complaint");
 const axios = require("axios");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const twitterService = require("../services/twitterService");
-const { TwitterMediaUploader } = require("../twitter-media-uploader");
+const {TwitterMediaUploader} = require("../services/twitter-media-uploader");
 
 // Initialize Gemini AI and Twitter Media Uploader
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const mediaUploader = new TwitterMediaUploader();
 
-// Logger for complaint controller
-class ComplaintLogger {
-  constructor() {
-    this.logFile = `logs/complaint-controller-${new Date().toISOString().split('T')[0]}.log`;
-    
-    // Create logs directory if it doesn't exist
-    const fs = require('fs');
-    if (!fs.existsSync('logs')) {
-      fs.mkdirSync('logs');
-    }
-  }
-
-  log(level, message, data = null) {
-    const timestamp = new Date().toISOString();
-    const logMessage = `[${timestamp}] ${level}: ${message}`;
-    
-    console.log(logMessage);
-    if (data) {
-      console.log(JSON.stringify(data, null, 2));
-    }
-
-    // Write to file
-    const fs = require('fs');
-    const fileMessage = data ? `${logMessage}\n${JSON.stringify(data, null, 2)}\n` : `${logMessage}\n`;
-    try {
-      fs.appendFileSync(this.logFile, fileMessage);
-    } catch (error) {
-      console.error('Failed to write to log file:', error);
-    }
-  }
-
-  error(message, data) { this.log('ERROR', message, data); }
-  warn(message, data) { this.log('WARN', message, data); }
-  info(message, data) { this.log('INFO', message, data); }
-  debug(message, data) { this.log('DEBUG', message, data); }
-}
-
-const logger = new ComplaintLogger();
-
-// Utility: Convert URL to Base64 for Gemini
+// Convert URL to Base64
 async function urlToBase64(url) {
   try {
-    logger.debug('Converting URL to Base64', { url });
-    const res = await axios.get(url, { responseType: "arraybuffer" });
-    const base64 = Buffer.from(res.data).toString("base64");
-    logger.debug('URL to Base64 conversion successful');
-    return base64;
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    return Buffer.from(response.data, 'binary').toString('base64');
   } catch (error) {
-    logger.error("Error converting URL to base64:", { error: error.message, url });
-    throw error;
+    throw new Error(`Error converting URL to base64: ${error.message}`);
   }
 }
 
-// Generate Twitter post content using Gemini AI
-async function generateTweetWithGemini(description, location, mediaUrls) {
-  logger.info('Generating tweet content with Gemini AI', {
-    hasDescription: !!description,
-    location: location,
-    mediaCount: mediaUrls?.length || 0
-  });
-
+// Generate tweet content using Gemini AI
+async function generateTweetWithGemini(description, location, mediaUrls = []) {
+  console.log("🤖 [GEMINI] Starting tweet generation...");
+  console.log(`🤖 [GEMINI] Location: ${location}`);
+  console.log(`🤖 [GEMINI] Description: ${description}`);
+  console.log(`🤖 [GEMINI] Media URLs count: ${mediaUrls.length}`);
+  
   try {
-    // Check if Gemini API key is available
     if (!process.env.GEMINI_API_KEY) {
-      logger.warn("No Gemini API key found, using fallback message");
-      const fallbackTweet = `🚨 Civic issue reported at ${location}. ${description || "Immediate attention required!"} #MumbaiCivicIssue @mybmc`;
+      console.log("⚠️ [GEMINI] No API key found, using fallback tweet");
+      const fallbackTweet = `🚨 Civic issue reported at ${location}. Immediate attention required! #CivicIssue #SilentShout`;
+      console.log(`🤖 [GEMINI] Fallback tweet: ${fallbackTweet}`);
       return fallbackTweet;
     }
-    
-    const model = genAI.getGenerativeModel({ model: "models/gemini-2.0-flash" });
-    
-    // Process only image files for Gemini (skip videos for now)
+
+    console.log("🤖 [GEMINI] Initializing Gemini model...");
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    let prompt = `Generate a compelling tweet about a civic complaint at location ${location}`;
+    if (description) {
+      prompt += ` with the following issue: ${description}`;
+    }
+    prompt += `. Include relevant hashtags like #MumbaiCivicIssue, #CleanMumbai, #SwachhBharat, #CivicIssue and mention @mybmc if it's in Mumbai. Keep it under 280 characters and make it engaging to drive public attention to the issue.`;
+    console.log(`🤖 [GEMINI] Generated prompt: ${prompt}`);
+
     let mediaData = [];
     if (mediaUrls && mediaUrls.length > 0) {
+      console.log("🖼️ [GEMINI] Processing images for AI analysis...");
       try {
         const imageUrls = mediaUrls.filter(url => 
           url.toLowerCase().includes('.jpg') || 
           url.toLowerCase().includes('.jpeg') || 
           url.toLowerCase().includes('.png') ||
-          url.toLowerCase().includes('.webp')
+          url.toLowerCase().includes('.webp') ||
+          url.toLowerCase().includes('.avif') ||
+          url.toLowerCase().includes('.gif')
         );
-        
-        logger.debug('Processing images for Gemini', { imageCount: imageUrls.length });
-        
-        if (imageUrls.length > 0) {
-          // Process only the first 2 images to avoid token limits
-          const limitedUrls = imageUrls.slice(0, 2);
-          const mediaPromises = limitedUrls.map(async (url) => {
-            const base64 = await urlToBase64(url);
-            return {
+        console.log(`🖼️ [GEMINI] Found ${imageUrls.length} image URLs`);
+
+        for (const imageUrl of imageUrls.slice(0, 2)) {
+          try {
+            console.log(`🖼️ [GEMINI] Converting image to base64: ${imageUrl}`);
+            const base64Data = await urlToBase64(imageUrl);
+            mediaData.push({
               inlineData: {
-                data: base64,
-                mimeType: "image/jpeg",
-              },
-            };
-          });
-          mediaData = await Promise.all(mediaPromises);
-          logger.debug('Media data prepared for Gemini', { processedCount: mediaData.length });
+                data: base64Data,
+                mimeType: "image/jpeg"
+              }
+            });
+            console.log(`✅ [GEMINI] Image converted successfully`);
+          } catch (err) {
+            console.log(`❌ [GEMINI] Failed to convert image: ${err.message}`);
+            continue; // Skip this image if conversion fails
+          }
         }
       } catch (err) {
-        logger.error("Error processing media for Gemini:", { error: err.message });
-        // Continue without images if there's an error
+        console.log(`⚠️ [GEMINI] Error processing images: ${err.message}`);
+        // Continue without images
       }
     }
 
-    const prompt = `You are analyzing a civic complaint submitted by a citizen in Mumbai, India.
+    const parts = [{ text: prompt }];
+    if (mediaData.length > 0) {
+      parts.push(...mediaData);
+      console.log(`🤖 [GEMINI] Including ${mediaData.length} images in analysis`);
+    }
 
-Location: ${location}
-Description: ${description || "No description provided"}
-
-Based on the image(s) and description, create a compelling Twitter post that:
-1. Clearly describes the civic issue (garbage, pothole, water problem, etc.)
-2. Mentions the specific location in Mumbai
-3. Tags relevant authorities (@mybmc for BMC, @MumbaiPolice for safety, etc.)
-4. Uses appropriate hashtags (#MumbaiCivicIssue, #CleanMumbai, etc.)
-5. Includes a call to action
-6. Is under 280 characters
-7. Uses emojis to make it more engaging
-
-IMPORTANT: Return ONLY the tweet text, nothing else. No explanations, no additional text.`;
-
-    let result;
     try {
-      // Generate content with or without images
-      if (mediaData.length > 0) {
-        logger.debug('Generating content with images');
-        result = await model.generateContent([prompt, ...mediaData]);
-      } else {
-        logger.debug('Generating content without images');
-        result = await model.generateContent(prompt);
-      }
-      
+      console.log("🤖 [GEMINI] Calling Gemini API...");
+      const result = await model.generateContent(parts);
       const response = await result.response;
-      const tweetText = response.text().trim();
-      
-      logger.info('Tweet content generated successfully', { 
-        tweetLength: tweetText.length,
-        hasImages: mediaData.length > 0
-      });
-      
+      const tweetText = response.text();
+      console.log(`✅ [GEMINI] Generated tweet: ${tweetText}`);
       return tweetText;
     } catch (genError) {
-      logger.error("Error generating content with Gemini:", { error: genError.message });
-      // Fallback tweet text
-      const fallbackTweet = `🚨 Civic issue reported at ${location}. ${description ? description.substring(0, 100) : "Immediate attention required!"} #MumbaiCivicIssue @mybmc`;
-      logger.info('Using fallback tweet text', { fallbackTweet });
+      console.log(`⚠️ [GEMINI] API call failed: ${genError.message}`);
+      console.log("🔄 [GEMINI] Using fallback tweet");
+      const fallbackTweet = `🚨 Civic issue reported at ${location}. Immediate attention required! #CivicIssue @mybmc`;
+      console.log(`🤖 [GEMINI] Fallback tweet: ${fallbackTweet}`);
       return fallbackTweet;
     }
+
   } catch (error) {
-    logger.error("Error in generateTweetWithGemini:", { error: error.message });
-    const fallbackTweet = `🚨 Civic issue at ${location}. ${description?.substring(0, 100) || ""} #MumbaiCivicIssue @mybmc`;
-    return fallbackTweet;
+    console.log(`❌ [GEMINI] Critical error: ${error.message}`);
+    console.log("🔄 [GEMINI] Using emergency fallback tweet");
+    return `🚨 Civic issue reported. Immediate attention required! #CivicIssue #SilentShout`;
   }
 }
 
-// Post to Twitter using the Twitter Service
+// Post to Twitter with service
 async function postToTwitterWithService(tweetText, mediaUrls = []) {
-  logger.info('Posting to Twitter using Twitter Service', { 
-    textLength: tweetText.length, 
-    mediaCount: mediaUrls?.length || 0 
-  });
-
+  console.log("🐦 [TWITTER] Starting Twitter post process...");
+  console.log(`🐦 [TWITTER] Tweet text: ${tweetText}`);
+  console.log(`🐦 [TWITTER] Media URLs count: ${mediaUrls.length}`);
+  
   try {
     let mediaIds = [];
     
     // Upload media first if provided
     if (mediaUrls && mediaUrls.length > 0) {
-      logger.info('Processing media for Twitter upload', { 
-        mediaCount: mediaUrls.length,
-        mediaUrls: mediaUrls
-      });
-      
+      console.log("📤 [TWITTER] Processing media uploads...");
       const imageUrls = mediaUrls.filter(url => {
         const lowerUrl = url.toLowerCase();
         return lowerUrl.includes('.jpg') || 
@@ -190,56 +129,29 @@ async function postToTwitterWithService(tweetText, mediaUrls = []) {
                lowerUrl.includes('.avif') ||
                lowerUrl.includes('.gif');
       });
-      
-      logger.debug('Filtered image URLs', { 
-        imageCount: imageUrls.length, 
-        totalUrls: mediaUrls.length,
-        originalUrls: mediaUrls,
-        filteredUrls: imageUrls
-      });
+      console.log(`📷 [TWITTER] Found ${imageUrls.length} image URLs to upload`);
       
       try {
-        // Use the dedicated media uploader for better handling
-        logger.info('Uploading images to Twitter using dedicated uploader', { urls: imageUrls });
-        const uploadResults = await mediaUploader.uploadMultipleMedia(imageUrls.slice(0, 4)); // Twitter allows max 4 images
-        
-        // Extract just the media IDs from successful uploads
+        console.log("📤 [TWITTER] Uploading media to Twitter...");
+        const uploadResults = await mediaUploader.uploadMultipleMedia(imageUrls.slice(0, 4));
         mediaIds = uploadResults
           .filter(result => result.success)
           .map(result => result.mediaId);
-          
-        logger.info('Successfully uploaded media to Twitter', { 
-          uploadResults,
-          extractedMediaIds: mediaIds,
-          uploadedCount: mediaIds.length 
-        });
+        console.log(`✅ [TWITTER] Successfully uploaded ${mediaIds.length} media files`);
+        console.log(`🆔 [TWITTER] Media IDs: ${mediaIds.join(', ')}`);
       } catch (mediaError) {
-        logger.error('Failed to upload media with dedicated uploader', { 
-          error: mediaError.message,
-          stack: mediaError.stack,
-          urls: imageUrls
-        });
-        // Continue with text-only tweet if media upload fails
-        logger.warn('Proceeding with text-only tweet due to media upload failure');
+        console.log(`❌ [TWITTER] Media upload failed: ${mediaError.message}`);
         mediaIds = [];
       }
     }
 
-    // Post tweet using the service
-    logger.info('Posting tweet to Twitter', { 
-      tweetLength: tweetText.length, 
-      mediaIds: mediaIds.length 
-    });
-    
+    console.log("🐦 [TWITTER] Posting tweet to Twitter API...");
     const result = await twitterService.postTweet(tweetText, mediaIds);
     
     if (result.success) {
-      logger.info('Tweet posted successfully via Twitter service', {
-        tweetId: result.tweetId,
-        tweetUrl: result.tweetUrl,
-        mediaCount: mediaIds.length
-      });
-      
+      console.log(`✅ [TWITTER] Tweet posted successfully!`);
+      console.log(`🆔 [TWITTER] Tweet ID: ${result.tweetId}`);
+      console.log(`🔗 [TWITTER] Tweet URL: ${result.tweetUrl}`);
       return {
         success: true,
         tweetId: result.tweetId,
@@ -249,11 +161,7 @@ async function postToTwitterWithService(tweetText, mediaUrls = []) {
         mediaCount: mediaIds.length
       };
     } else {
-      logger.error('Twitter service returned error', { 
-        error: result.error, 
-        code: result.code 
-      });
-      
+      console.log(`❌ [TWITTER] Tweet posting failed: ${result.error}`);
       return {
         success: false,
         error: result.error,
@@ -264,12 +172,8 @@ async function postToTwitterWithService(tweetText, mediaUrls = []) {
     }
 
   } catch (error) {
-    logger.error("Error posting to Twitter with service:", { 
-      error: error.message, 
-      stack: error.stack 
-    });
-    
-    // Return development mode response as fallback
+    console.log(`❌ [TWITTER] Critical error in Twitter posting: ${error.message}`);
+    console.log(`❌ [TWITTER] Error stack:`, error.stack);
     return {
       success: false,
       error: error.message,
@@ -282,353 +186,310 @@ async function postToTwitterWithService(tweetText, mediaUrls = []) {
 
 // Submit complaint - main controller function
 exports.submitComplaint = async (req, res) => {
+  console.log("🚀 [SUBMIT COMPLAINT] Starting complaint submission");
   const complaintId = `complaint_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  
-  logger.info('Starting complaint submission process', {
-    complaintId,
-    userId: req.user?._id,
-    hasFiles: !!(req.files && req.files.length > 0)
-  });
+  console.log(`📝 [SUBMIT COMPLAINT] Generated complaint ID: ${complaintId}`);
 
-  // Check authentication first
+  // Check authentication
   if (!req.user || !req.user._id) {
-    logger.error('Authentication failed', { 
-      complaintId,
-      hasUser: !!req.user
-    });
-    return res.status(401).json({ 
-      message: "You must be logged in to submit a complaint",
-      complaintId,
-      error: "AUTHENTICATION_REQUIRED"
+    console.log("❌ [SUBMIT COMPLAINT] Authentication failed - no user found");
+    return res.status(401).json({
+      success: false,
+      message: "Authentication required"
     });
   }
+  console.log(`👤 [SUBMIT COMPLAINT] User authenticated: ${req.user._id}`);
 
   try {
+    console.log("🔍 [SUBMIT COMPLAINT] Request body:", JSON.stringify(req.body, null, 2));
+    console.log("🔍 [SUBMIT COMPLAINT] Request body keys:", Object.keys(req.body));
+    
     const { description, location, locationType } = req.body;
-    const files = req.files;
-
-    logger.info('Input validation passed, starting media upload', {
-      complaintId,
-      userId: req.user._id,
-      fileCount: files?.length || 0
-    });
-
-    // Validate inputs
-    if (!files || files.length === 0) {
-      logger.warn('Complaint submission failed - no files uploaded', { complaintId });
-      return res.status(400).json({ 
-        message: "Please upload at least one image or video",
-        complaintId 
-      });
+    console.log(`🔍 [SUBMIT COMPLAINT] Raw location: "${location}"`);
+    console.log(`🔍 [SUBMIT COMPLAINT] Location type: ${locationType}`);
+    
+    // Parse latitude and longitude from location string
+    let latitude, longitude;
+    if (location && typeof location === 'string' && location.includes(',')) {
+      const [lat, lng] = location.split(',').map(coord => coord.trim());
+      latitude = parseFloat(lat);
+      longitude = parseFloat(lng);
+      console.log(`🔍 [SUBMIT COMPLAINT] Parsed coordinates - lat: ${latitude}, lng: ${longitude}`);
+    } else {
+      console.log(`❌ [SUBMIT COMPLAINT] Invalid location format: "${location}"`);
     }
     
-    if (!location) {
-      logger.warn('Complaint submission failed - no location provided', { complaintId });
-      return res.status(400).json({ 
-        message: "Location is required",
-        complaintId 
+    console.log(`📍 [SUBMIT COMPLAINT] Final Location: ${latitude}, ${longitude}, Type: ${locationType}`);
+    console.log(`📄 [SUBMIT COMPLAINT] Description: ${description}`);
+    console.log(`📎 [SUBMIT COMPLAINT] Files received: ${req.files ? req.files.length : 0}`);
+
+    // Validation
+    if (!req.files || req.files.length === 0) {
+      console.log("❌ [SUBMIT COMPLAINT] Validation failed - no files provided");
+      return res.status(400).json({
+        success: false,
+        message: "At least one image/video file is required"
       });
     }
 
-    // Make sure user is authenticated
-    if (!req.user || !req.user._id) {
-      logger.warn('Complaint submission failed - user not authenticated', { complaintId });
-      return res.status(401).json({ 
-        message: "You must be logged in to submit a complaint",
-        complaintId 
+    if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
+      console.log("❌ [SUBMIT COMPLAINT] Validation failed - missing or invalid coordinates");
+      console.log(`🔍 [SUBMIT COMPLAINT] Latitude: ${latitude} (isNaN: ${isNaN(latitude)})`);
+      console.log(`🔍 [SUBMIT COMPLAINT] Longitude: ${longitude} (isNaN: ${isNaN(longitude)})`);
+      return res.status(400).json({
+        success: false,
+        message: "Valid location coordinates are required"
       });
     }
+    console.log("✅ [SUBMIT COMPLAINT] Validation passed");
 
-    logger.info('Input validation passed, starting media upload', {
-      complaintId,
-      userId: req.user._id,
-      fileCount: files.length
-    });
-
-    // Upload media files to Cloudinary
-    const uploadPromises = files.map(async (file, index) => {
-      const fileType = file.mimetype.startsWith("image/") ? "image" : "video";
-      const fileBuffer = file.buffer.toString("base64");
-      const fileData = `data:${file.mimetype};base64,${fileBuffer}`;
-
-      logger.debug('Uploading media to Cloudinary', {
-        complaintId,
-        fileIndex: index,
-        fileType,
-        mimetype: file.mimetype,
-        size: file.size
-      });
-
+    // Upload media to Cloudinary
+    console.log("☁️ [SUBMIT COMPLAINT] Starting Cloudinary uploads...");
+    const mediaUrls = [];
+    const uploadPromises = req.files.map(async (file, index) => {
       try {
-        const uploadResult = await cloudinary.uploader.upload(fileData, {
-          resource_type: fileType,
+        console.log(`📤 [CLOUDINARY] Uploading file ${index + 1}/${req.files.length}: ${file.originalname}`);
+        console.log(`📤 [CLOUDINARY] File size: ${file.size} bytes, mimetype: ${file.mimetype}`);
+        
+        // Since we're using memory storage, upload from buffer
+        const result = await cloudinary.uploader.upload(`data:${file.mimetype};base64,${file.buffer.toString('base64')}`, {
           folder: "complaints",
+          resource_type: "auto"
         });
-
-        logger.debug('Media uploaded to Cloudinary successfully', {
-          complaintId,
-          fileIndex: index,
-          publicId: uploadResult.public_id,
-          url: uploadResult.secure_url
-        });
-
-        return {
-          url: uploadResult.secure_url,
-          public_id: uploadResult.public_id,
-          type: fileType,
-        };
-      } catch (uploadError) {
-        logger.error('Failed to upload media to Cloudinary', {
-          complaintId,
-          fileIndex: index,
-          error: uploadError.message
-        });
-        throw uploadError;
+        console.log(`✅ [CLOUDINARY] File ${index + 1} uploaded successfully: ${result.secure_url}`);
+        return result.secure_url;
+      } catch (error) {
+        console.log(`❌ [CLOUDINARY] Upload failed for file ${index + 1}: ${error.message}`);
+        throw error;
       }
     });
 
-    const uploadedMedia = await Promise.all(uploadPromises);
-    const mediaUrls = uploadedMedia.map(media => media.url);
+    try {
+      console.log("⏳ [CLOUDINARY] Waiting for all uploads to complete...");
+      const uploadResults = await Promise.all(uploadPromises);
+      mediaUrls.push(...uploadResults);
+      console.log(`✅ [CLOUDINARY] All uploads completed. Total URLs: ${mediaUrls.length}`);
+    } catch (uploadError) {
+      console.log(`❌ [CLOUDINARY] Upload process failed: ${uploadError.message}`);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to upload media files",
+        error: uploadError.message
+      });
+    }
 
-    logger.info('All media uploaded to Cloudinary successfully', {
-      complaintId,
-      uploadCount: uploadedMedia.length,
-      mediaUrls: mediaUrls.length
-    });
+    // Generate tweet content
+    console.log("🤖 [GEMINI AI] Generating tweet content...");
+    const locationString = `${latitude}, ${longitude}`;
+    const tweetText = await generateTweetWithGemini(description, locationString, mediaUrls);
+    console.log(`📝 [GEMINI AI] Generated tweet: ${tweetText}`);
 
-    // Generate tweet content using Gemini AI
-    logger.info("Generating tweet content with Gemini AI", { complaintId });
-    const tweetText = await generateTweetWithGemini(description, location, mediaUrls);
-    
-    logger.info("Tweet content generated", { 
-      complaintId, 
-      tweetLength: tweetText.length,
-      tweetPreview: tweetText.substring(0, 50) + "..."
-    });
-
-    // Post to Twitter using the service
-    logger.info("Attempting to post tweet to Twitter", { complaintId });
+    // Post to Twitter
+    console.log("🐦 [TWITTER] Posting to Twitter...");
     const twitterResult = await postToTwitterWithService(tweetText, mediaUrls);
-    
-    logger.info("Twitter posting completed", { 
-      complaintId,
-      success: twitterResult.success,
-      tweetId: twitterResult.tweetId || null,
-      error: twitterResult.error || null
-    });
+    console.log(`🐦 [TWITTER] Post result:`, twitterResult);
 
-    // Save complaint to database
-    logger.info("Saving complaint to database", { complaintId });
+    // Save to database
+    console.log("💾 [DATABASE] Saving complaint to database...");
+    console.log("💾 [DATABASE] Preparing data according to schema...");
+    
+    // Convert mediaUrls to media format expected by schema
+    const mediaArray = mediaUrls.map(url => ({
+      url: url,
+      type: url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.mov') || url.toLowerCase().includes('.avi') ? 'video' : 'image'
+    }));
+    console.log(`💾 [DATABASE] Media array prepared: ${mediaArray.length} items`);
     
     const newComplaint = new Complaint({
-      user: req.user._id,
-      description,
-      location,
-      locationType,
-      media: uploadedMedia.map(media => ({
-        url: media.url,
-        public_id: media.public_id,
-        type: media.type,
-        isVerified: true, // Simplified - auto-verified for now
-      })),
-      status: twitterResult.success ? "posted" : "pending",
-      twitter: {
-        tweetId: twitterResult.tweetId || null,
-        tweetUrl: twitterResult.tweetUrl || null,
-        status: twitterResult.success ? "posted" : "failed",
-        postedAt: twitterResult.success ? new Date() : null,
-        error: twitterResult.success ? null : twitterResult.error,
-        generatedText: tweetText,
+      userId: req.user._id,
+      title: description || "Civic Issue Report", // Add required title field
+      description: description || "Civic issue reported via SilentShout app",
+      category: "civic", // Add category
+      location: {
+        coordinates: [parseFloat(longitude), parseFloat(latitude)],
+        type: "Point"
       },
-      metadata: {
-        complaintId,
-        submittedAt: new Date(),
-        processingTime: Date.now() - parseInt(complaintId.split('_')[1])
-      }
+      media: mediaArray, // Use correct media format
+      
+      // Twitter data in correct format
+      twitter: {
+        tweetId: twitterResult.success ? twitterResult.tweetId : undefined,
+        status: twitterResult.success ? 'posted' : 'failed',
+        postedAt: twitterResult.success ? new Date() : undefined,
+        error: twitterResult.success ? undefined : twitterResult.error
+      },
+      
+      status: 'open' // Set initial status
     });
 
+    console.log("💾 [DATABASE] Complaint object created, attempting to save...");
     const savedComplaint = await newComplaint.save();
-    
-    logger.info("Complaint saved to database successfully", {
-      complaintId,
-      dbId: savedComplaint._id,
-      status: savedComplaint.status
-    });
+    console.log(`✅ [DATABASE] Complaint saved successfully with ID: ${savedComplaint._id}`);
 
-    // Prepare response
-    const response = {
-      message: "Complaint submitted successfully!",
-      complaintId: savedComplaint._id,
-      customComplaintId: complaintId,
-      tweetText: tweetText,
-      twitterResult: {
+    console.log("🎉 [SUBMIT COMPLAINT] Process completed successfully");
+    res.status(201).json({
+      success: true,
+      message: "Complaint submitted successfully",
+      complaint: {
+        id: savedComplaint._id,
+        title: savedComplaint.title,
+        description: savedComplaint.description,
+        location: savedComplaint.location,
+        media: savedComplaint.media, // Use correct field name from schema
+        status: savedComplaint.status,
+        createdAt: savedComplaint.createdAt,
+        twitter: savedComplaint.twitter // Use correct field name from schema
+      },
+      twitter: {
         success: twitterResult.success,
         tweetId: twitterResult.tweetId,
         tweetUrl: twitterResult.tweetUrl,
-        message: twitterResult.message,
-        error: twitterResult.success ? null : twitterResult.error
-      },
-      complaint: {
-        id: savedComplaint._id,
-        status: savedComplaint.status,
-        location: savedComplaint.location,
-        mediaCount: savedComplaint.media.length,
-        createdAt: savedComplaint.createdAt
+        message: twitterResult.message
       }
-    };
-
-    logger.info("Complaint submission process completed successfully", {
-      complaintId,
-      dbId: savedComplaint._id,
-      twitterSuccess: twitterResult.success,
-      responseCode: 201
     });
-
-    res.status(201).json(response);
 
   } catch (error) {
-    logger.error("Error in complaint submission process:", {
-      complaintId,
-      error: error.message,
-      stack: error.stack
-    });
-
-    res.status(500).json({ 
-      message: "Error submitting complaint", 
-      error: error.message,
-      complaintId,
-      timestamp: new Date().toISOString()
+    console.error("❌ [SUBMIT COMPLAINT] Error in complaint submission:", error);
+    console.error("❌ [SUBMIT COMPLAINT] Error stack:", error.stack);
+    res.status(500).json({
+      success: false,
+      message: "Failed to submit complaint",
+      error: error.message
     });
   }
 };
 
 // Get user complaints
 exports.getUserComplaints = async (req, res) => {
-  logger.info('Fetching user complaints', { userId: req.user._id });
-
+  console.log("📋 [GET USER COMPLAINTS] Starting to fetch user complaints");
+  console.log(`👤 [GET USER COMPLAINTS] User ID: ${req.user?._id}`);
   try {
-    const complaints = await Complaint.find({ user: req.user._id })
-      .sort({ createdAt: -1 })
-      .lean(); // Use lean() for better performance when just reading
-    
-    logger.info('User complaints fetched successfully', { 
-      userId: req.user._id,
-      complaintCount: complaints.length
-    });
+    if (!req.user || !req.user._id) {
+      console.log("❌ [GET USER COMPLAINTS] Authentication failed - no user found");
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required"
+      });
+    }
 
-    // Add some computed fields for frontend
-    const enrichedComplaints = complaints.map(complaint => ({
-      ...complaint,
-      hasTwitterPost: !!(complaint.twitter && complaint.twitter.tweetId),
-      mediaCount: complaint.media ? complaint.media.length : 0,
-      isRecent: (Date.now() - new Date(complaint.createdAt).getTime()) < 24 * 60 * 60 * 1000 // 24 hours
-    }));
-    
-    res.status(200).json({ 
-      complaints: enrichedComplaints,
-      total: complaints.length,
-      userId: req.user._id
+    console.log("🔍 [GET USER COMPLAINTS] Fetching complaints from database...");
+    const complaints = await Complaint.find({ userId: req.user._id })
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    console.log(`✅ [GET USER COMPLAINTS] Found ${complaints.length} complaints`);
+    res.json({
+      success: true,
+      message: "Complaints fetched successfully",
+      complaints: complaints.map(complaint => ({
+        id: complaint._id,
+        description: complaint.description,
+        location: complaint.location,
+        mediaUrls: complaint.mediaUrls,
+        status: complaint.status,
+        createdAt: complaint.createdAt,
+        twitterData: complaint.twitterData
+      })),
+      total: complaints.length
     });
 
   } catch (error) {
-    logger.error("Error fetching user complaints:", { 
-      userId: req.user._id,
-      error: error.message 
-    });
-    
-    res.status(500).json({ 
-      message: "Error fetching complaints", 
-      error: error.message 
+    console.error("❌ [GET USER COMPLAINTS] Error fetching complaints:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch complaints",
+      error: error.message
     });
   }
 };
 
 // Get complaint by ID
 exports.getComplaintById = async (req, res) => {
-  const complaintId = req.params.id;
-  logger.info('Fetching complaint by ID', { complaintId, userId: req.user._id });
-
+  console.log("🔍 [GET COMPLAINT BY ID] Starting to fetch specific complaint");
   try {
-    const complaint = await Complaint.findById(complaintId).lean();
-    
-    if (!complaint) {
-      logger.warn('Complaint not found', { complaintId, userId: req.user._id });
-      return res.status(404).json({ message: "Complaint not found" });
-    }
+    const { id } = req.params;
+    console.log(`🆔 [GET COMPLAINT BY ID] Complaint ID: ${id}`);
 
-    // Check if the complaint belongs to the requesting user
-    if (complaint.user.toString() !== req.user._id.toString()) {
-      logger.warn('Unauthorized access attempt to complaint', { 
-        complaintId, 
-        userId: req.user._id, 
-        complaintUserId: complaint.user 
+    if (!req.user || !req.user._id) {
+      console.log("❌ [GET COMPLAINT BY ID] Authentication failed - no user found");
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required"
       });
-      return res.status(403).json({ message: "You don't have permission to view this complaint" });
     }
+    console.log(`👤 [GET COMPLAINT BY ID] User authenticated: ${req.user._id}`);
 
-    // Enrich the complaint data
-    const enrichedComplaint = {
-      ...complaint,
-      hasTwitterPost: !!(complaint.twitter && complaint.twitter.tweetId),
-      mediaCount: complaint.media ? complaint.media.length : 0,
-      isRecent: (Date.now() - new Date(complaint.createdAt).getTime()) < 24 * 60 * 60 * 1000,
-      twitterUrl: complaint.twitter && complaint.twitter.tweetId 
-        ? `https://twitter.com/user/status/${complaint.twitter.tweetId}` 
-        : null
-    };
+    console.log("🔍 [GET COMPLAINT BY ID] Fetching complaint from database...");
+    const complaint = await Complaint.findById(id);
 
-    logger.info('Complaint fetched successfully', { 
-      complaintId, 
-      userId: req.user._id,
-      hasTwitterPost: enrichedComplaint.hasTwitterPost
+    if (!complaint) {
+      console.log("❌ [GET COMPLAINT BY ID] Complaint not found in database");
+      return res.status(404).json({
+        success: false,
+        message: "Complaint not found"
+      });
+    }
+    console.log("✅ [GET COMPLAINT BY ID] Complaint found in database");
+
+    // Check if user owns this complaint
+    console.log("🔐 [GET COMPLAINT BY ID] Checking complaint ownership...");
+    if (complaint.userId.toString() !== req.user._id.toString()) {
+      console.log("❌ [GET COMPLAINT BY ID] Access denied - user doesn't own this complaint");
+      return res.status(403).json({
+        success: false,
+        message: "Access denied"
+      });
+    }
+    console.log("✅ [GET COMPLAINT BY ID] Ownership verified");
+
+    console.log("📤 [GET COMPLAINT BY ID] Sending complaint data to client");
+    res.json({
+      success: true,
+      message: "Complaint fetched successfully",
+      complaint: {
+        id: complaint._id,
+        description: complaint.description,
+        location: complaint.location,
+        mediaUrls: complaint.mediaUrls,
+        status: complaint.status,
+        createdAt: complaint.createdAt,
+        twitterData: complaint.twitterData,
+        metadata: complaint.metadata
+      }
     });
-
-    res.status(200).json({ complaint: enrichedComplaint });
 
   } catch (error) {
-    logger.error("Error fetching complaint:", { 
-      complaintId, 
-      userId: req.user._id,
-      error: error.message 
-    });
-    
-    res.status(500).json({ 
-      message: "Error fetching complaint", 
-      error: error.message 
+    console.error("❌ [GET COMPLAINT BY ID] Error fetching complaint:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch complaint",
+      error: error.message
     });
   }
 };
 
-// Health check endpoint for the controller
-exports.getHealthCheck = async (req, res) => {
+// Health check endpoint
+exports.healthCheck = async (req, res) => {
+  console.log("🏥 [HEALTH CHECK] Health check endpoint called");
   try {
     const health = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      services: {
-        cloudinary: !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY),
-        gemini: !!process.env.GEMINI_API_KEY,
-        twitter: await (async () => {
-          try {
-            const status = twitterService.getStatus();
-            return status.hasCredentials && status.initialized;
-          } catch {
-            return false;
-          }
-        })(),
-        database: true // Assume healthy if we can respond
-      }
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      environment: process.env.NODE_ENV || 'development'
     };
 
-    logger.info('Health check performed', health);
-    res.status(200).json(health);
-
+    res.json({
+      success: true,
+      message: "Service is healthy",
+      data: health
+    });
   } catch (error) {
-    logger.error('Health check failed', { error: error.message });
-    res.status(500).json({ 
-      status: 'unhealthy',
-      error: error.message,
-      timestamp: new Date().toISOString()
+    res.status(500).json({
+      success: false,
+      message: "Health check failed",
+      error: error.message
     });
   }
 };

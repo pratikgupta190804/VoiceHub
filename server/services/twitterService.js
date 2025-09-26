@@ -1,45 +1,6 @@
 const { TwitterApi } = require('twitter-api-v2');
 require('dotenv').config();
 
-// Logger for this service
-class TwitterServiceLogger {
-  constructor() {
-    this.logFile = `logs/twitter-service-${new Date().toISOString().split('T')[0]}.log`;
-    
-    // Create logs directory if it doesn't exist
-    const fs = require('fs');
-    if (!fs.existsSync('logs')) {
-      fs.mkdirSync('logs');
-    }
-  }
-
-  log(level, message, data = null) {
-    const timestamp = new Date().toISOString();
-    const logMessage = `[${timestamp}] ${level}: ${message}`;
-    
-    console.log(logMessage);
-    if (data) {
-      console.log(JSON.stringify(data, null, 2));
-    }
-
-    // Write to file
-    const fs = require('fs');
-    const fileMessage = data ? `${logMessage}\n${JSON.stringify(data, null, 2)}\n` : `${logMessage}\n`;
-    try {
-      fs.appendFileSync(this.logFile, fileMessage);
-    } catch (error) {
-      console.error('Failed to write to log file:', error);
-    }
-  }
-
-  error(message, data) { this.log('ERROR', message, data); }
-  warn(message, data) { this.log('WARN', message, data); }
-  info(message, data) { this.log('INFO', message, data); }
-  debug(message, data) { this.log('DEBUG', message, data); }
-}
-
-const logger = new TwitterServiceLogger();
-
 class TwitterService {
   constructor() {
     this.client = null;
@@ -48,37 +9,29 @@ class TwitterService {
   }
 
   loadConfig() {
-    const config = {
-      bearerToken: process.env.TWITTER_BEARER_TOKEN,
+    return {
       apiKey: process.env.TWITTER_API_KEY,
       apiSecret: process.env.TWITTER_API_SECRET,
       accessToken: process.env.TWITTER_ACCESS_TOKEN,
-      accessTokenSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET,
+      accessTokenSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET
     };
+  }
 
-    // Decode bearer token if URL encoded
-    if (config.bearerToken && config.bearerToken.includes('%2B')) {
-      config.bearerToken = decodeURIComponent(config.bearerToken);
+  validateConfig() {
+    const required = ['apiKey', 'apiSecret', 'accessToken', 'accessTokenSecret'];
+    const missing = required.filter(key => !this.config[key]);
+    
+    if (missing.length > 0) {
+      throw new Error(`Missing Twitter API credentials: ${missing.join(', ')}`);
     }
-
-    return config;
+    
+    return true;
   }
 
   async initialize() {
-    if (this.isInitialized) {
-      return;
-    }
-
-    logger.info('Initializing Twitter service...');
-
     try {
-      // Validate credentials
-      if (!this.config.apiKey || !this.config.apiSecret || 
-          !this.config.accessToken || !this.config.accessTokenSecret) {
-        throw new Error('Missing Twitter API credentials. Check your .env file.');
-      }
-
-      // Initialize Twitter client with OAuth 1.0a (required for posting)
+      this.validateConfig();
+      
       this.client = new TwitterApi({
         appKey: this.config.apiKey,
         appSecret: this.config.apiSecret,
@@ -86,119 +39,95 @@ class TwitterService {
         accessSecret: this.config.accessTokenSecret,
       });
 
-      // Test authentication
-      const user = await this.client.readWrite.currentUserV2();
-      logger.info('Twitter service initialized successfully', {
-        userId: user.data.id,
-        username: user.data.username
-      });
-
+      // Verify credentials
+      const me = await this.client.v2.me();
       this.isInitialized = true;
-
+      
+      return {
+        success: true,
+        userId: me.data.id,
+        username: me.data.username
+      };
+      
     } catch (error) {
-      logger.error('Failed to initialize Twitter service:', { error: error.message });
-      throw error;
+      this.isInitialized = false;
+      throw new Error(`Twitter service initialization failed: ${error.message}`);
     }
   }
 
   async postTweet(text, mediaIds = []) {
     try {
-      await this.initialize();
-
-      logger.info('Posting tweet...', { 
-        textLength: text.length,
-        mediaCount: mediaIds.length 
-      });
-
-      const tweetData = { text };
-      
-      if (mediaIds.length > 0) {
-        tweetData.media = { media_ids: mediaIds };
+      if (!this.isInitialized) {
+        await this.initialize();
       }
 
-      const userClient = this.client.readWrite;
-      const response = await userClient.v2.tweet(tweetData);
-
-      const result = {
-        success: true,
-        tweetId: response.data.id,
-        tweetText: response.data.text,
-        tweetUrl: `https://twitter.com/user/status/${response.data.id}`
+      const tweetOptions = {
+        text: text
       };
 
-      logger.info('Tweet posted successfully', result);
-      return result;
+      if (mediaIds.length > 0) {
+        tweetOptions.media = {
+          media_ids: mediaIds
+        };
+      }
 
-    } catch (error) {
-      logger.error('Failed to post tweet:', {
-        error: error.message,
-        code: error.code,
-        data: error.data
-      });
-
+      const tweet = await this.client.v2.tweet(tweetOptions);
+      
       return {
-        success: false,
-        error: error.message,
-        code: error.code,
-        tweetText: text
+        success: true,
+        tweetId: tweet.data.id,
+        tweetText: text,
+        tweetUrl: `https://twitter.com/user/status/${tweet.data.id}`,
+        mediaCount: mediaIds.length
       };
-    }
-  }
-
-  async uploadMedia(mediaBuffer, mediaType = 'image/jpeg') {
-    try {
-      await this.initialize();
-
-      logger.info('Uploading media to Twitter...', { mediaType });
-
-      const mediaUpload = await this.client.v1.uploadMedia(mediaBuffer, { 
-        mimeType: mediaType 
-      });
-
-      logger.info('Media uploaded successfully', { 
-        mediaId: mediaUpload 
-      });
-
-      return mediaUpload;
-
+      
     } catch (error) {
-      logger.error('Failed to upload media:', { error: error.message });
-      throw error;
+      throw new Error(`Failed to post tweet: ${error.message}`);
     }
   }
 
-  // Method to test the service
+  async uploadMedia(mediaBuffer, mimeType = 'image/jpeg') {
+    try {
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      const mediaId = await this.client.v1.uploadMedia(mediaBuffer, { mimeType });
+      return mediaId;
+      
+    } catch (error) {
+      throw new Error(`Failed to upload media: ${error.message}`);
+    }
+  }
+
   async testConnection() {
     try {
-      await this.initialize();
+      const initResult = await this.initialize();
       
       const testTweet = `🧪 SilentShout Twitter API test - ${new Date().toLocaleTimeString()} #APITest`;
       const result = await this.postTweet(testTweet);
       
-      logger.info('Twitter service test completed', result);
-      return result;
-
+      return {
+        success: true,
+        initialization: initResult,
+        testTweet: result
+      };
+      
     } catch (error) {
-      logger.error('Twitter service test failed:', { error: error.message });
-      throw error;
+      return {
+        success: false,
+        error: error.message
+      };
     }
   }
 
-  // Get service status
   getStatus() {
     return {
       initialized: this.isInitialized,
-      hasCredentials: !!(this.config.apiKey && this.config.apiSecret && 
-                        this.config.accessToken && this.config.accessTokenSecret),
-      config: {
-        apiKey: this.config.apiKey ? `${this.config.apiKey.substring(0, 8)}...` : null,
-        bearerToken: this.config.bearerToken ? `${this.config.bearerToken.substring(0, 8)}...` : null
-      }
+      hasCredentials: this.validateConfig(),
+      service: 'Twitter API v2'
     };
   }
 }
 
-// Create singleton instance
-const twitterService = new TwitterService();
-
-module.exports = twitterService;
+module.exports = new TwitterService();
