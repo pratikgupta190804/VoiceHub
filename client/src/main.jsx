@@ -7,10 +7,7 @@ import LoginPage from "./Pages/LoginPage.jsx";
 import SignupPage from "./Pages/SignupPage.jsx";
 import SettingPage from "./Pages/SettingPage.jsx";
 import MapView from "./Pages/MapView.jsx";
-<<<<<<< HEAD
 import ComplaintFormPage from "./Pages/ComplaintFormPage.jsx";
-=======
->>>>>>> ebbedb4539851fc5c733a7f6e960a1ecddbc80d2
 
 const router = createBrowserRouter([
   {
