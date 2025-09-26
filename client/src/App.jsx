@@ -64,13 +64,12 @@ function App() {
   return (
     <>
       <Toaster position="top-center" />
+      {location.pathname !== "/login" && location.pathname !== "/signup" && (
+        <NavBar />
+      )}
       {authUser ? (
-        <>
-          <NavBar />
-          <Outlet />
-        </>
-      ) : 
-      location.pathname === "/signup" ? (
+        <Outlet />
+      ) : location.pathname === "/signup" ? (
         <Outlet />
       ) : (
         <LoginPage />

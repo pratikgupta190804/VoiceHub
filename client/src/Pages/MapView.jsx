@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   Map,
   Marker,
@@ -10,7 +11,8 @@ import {
 } from "@vis.gl/react-maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as turf from "@turf/turf";
-import { FaMapMarkerAlt } from "react-icons/fa";
+import { FaMapMarkerAlt, FaHome } from "react-icons/fa";
+import { useStoreAuth } from "../store/useAuthStore";
 
 // Custom styles for smaller map controls
 const customStyles = `
@@ -70,14 +72,17 @@ getAddressFromCoords(19.076, 72.8777).then(address => {
 
 // will accept complaints array as prop in future
 const MapView = () => {
-    
+  const { toggleNav } = useStoreAuth();
+
   // Inject custom styles for smaller controls
   useEffect(() => {
+    toggleNav(false);
     const styleElement = document.createElement("style");
     styleElement.textContent = customStyles;
     document.head.appendChild(styleElement);
 
     return () => {
+      toggleNav(true);
       if (document.head.contains(styleElement)) {
         document.head.removeChild(styleElement);
       }
@@ -554,6 +559,22 @@ const MapView = () => {
           </div>
         </>
       )}
+
+      {/* Floating Home Button - Bottom Right */}
+      <Link
+        to="/"
+        className="fixed bottom-6 right-6 w-14 h-14 flex items-center justify-center rounded-full shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-3xl group z-50 border-2"
+        style={{
+          background: "linear-gradient(135deg, #0f70cd 0%, #2563eb 100%)",
+          borderColor: "#0f70cd",
+        }}
+        title="Back to Home"
+      >
+        <FaHome
+          size={20}
+          className="text-white group-hover:animate-pulse drop-shadow-sm"
+        />
+      </Link>
     </Map>
   );
 };
