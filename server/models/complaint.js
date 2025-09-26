@@ -1,40 +1,78 @@
 const mongoose = require("mongoose");
-const { Schema } = mongoose;
 
-const ComplaintSchema = new Schema({
-  userId: { type: Schema.Types.ObjectId, ref: "User" },
-  upvote:{type :Number, default:0},
-  downvote:{type :Number, default:0},
-  comments: [{ type: Schema.Types.ObjectId, ref: "Comment" }],
-  title: { type: String, required: true, trim: true },
-  description: { type: String, required: true, trim: true },
-  category: { type: String, default: "General" },
-  // media field directly inside complaint
-  media: [
-    {
-      url: { type: String, required: true }, // Cloudinary secure_url
-      type: { type: String, enum: ["image", "video"], required: true }, // classify quickly
+const complaintSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
     },
-  ],
-
-  location: {
-    type: { type: String, enum: ["Point"], default: "Point" },
-    coordinates: { type: [Number], index: "2dsphere" }, // [lng, lat]
-    namedAddress: { type: String, required: true }, // Human readable address
-    latitude: { type: Number, required: true }, // Separate lat field for easy access
-    longitude: { type: Number, required: true }, // Separate lng field for easy access
+    description: {
+      type: String,
+      required: true,
+    },
+    category: {
+      type: String,
+      enum: ["Infrastructure", "Safety", "Sanitation", "Environment", "Other"],
+      default: "Other",
+    },
+    status: {
+      type: String,
+      enum: ["pending", "in-progress", "resolved", "rejected"],
+      default: "pending",
+    },
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        required: true,
+      },
+      namedAddress: {
+        type: String,
+        required: true,
+      },
+    },
+    media: [
+      {
+        url: {
+          type: String,
+          required: true,
+        },
+        type: {
+          type: String,
+          enum: ["image", "video"],
+          required: true,
+        },
+      },
+    ],
+    upvote: {
+      type: Number,
+      default: 0,
+    },
+    downvote: {
+      type: Number,
+      default: 0,
+    },
+    comments: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Comment",
+      },
+    ],
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
   },
+  {
+    timestamps: true,
+  }
+);
 
-  authorities: [{ name: String, handle: String }],
+// Create a geospatial index for location-based queries
+complaintSchema.index({ location: "2dsphere" });
 
-  twitter: {
-    tweetId: String,
-    postedAt: Date,
-    error: String,
-  },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
-});
-
-module.exports = mongoose.model("Complaint", ComplaintSchema);
-  
+module.exports = mongoose.model("Complaint", complaintSchema);

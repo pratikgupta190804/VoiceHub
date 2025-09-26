@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   Map,
@@ -11,8 +11,16 @@ import {
 } from "@vis.gl/react-maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import * as turf from "@turf/turf";
-import { FaMapMarkerAlt, FaHome } from "react-icons/fa";
+import {
+  FaMapMarkerAlt,
+  FaHome,
+  FaFilter,
+  FaSearch,
+  FaClock,
+  FaChartLine,
+} from "react-icons/fa";
 import { useStoreAuth } from "../store/useAuthStore";
+import { useComplaintStore } from "../store/useComplaintStore";
 
 // Custom styles for smaller map controls
 const customStyles = `
@@ -73,10 +81,45 @@ getAddressFromCoords(19.076, 72.8777).then(address => {
 // will accept complaints array as prop in future
 const MapView = () => {
   const { toggleNav } = useStoreAuth();
+  const { allcomplaints, getAllComplaints } = useComplaintStore();
+
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedDistance, setSelectedDistance] = useState("all");
+  const filterDropdownRef = useRef(null);
+
+  // Map states
+  const [viewState, setViewState] = useState({
+    longitude: 72.8777,
+    latitude: 19.076,
+    zoom: 14,
+  });
+  const [mapZoom, setMapZoom] = useState(15);
+  const [selected, setSelected] = useState(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        filterDropdownRef.current &&
+        !filterDropdownRef.current.contains(event.target)
+      ) {
+        setShowFilterDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // Inject custom styles for smaller controls
   useEffect(() => {
     toggleNav(false);
+    getAllComplaints(); // Fetch complaints when component mounts
     const styleElement = document.createElement("style");
     styleElement.textContent = customStyles;
     document.head.appendChild(styleElement);
@@ -87,19 +130,43 @@ const MapView = () => {
         document.head.removeChild(styleElement);
       }
     };
-  }, []);
+  }, [getAllComplaints, toggleNav]);
 
   // A circle of 2 mile radius around me - using [longitude, latitude] format
   const GEOFENCE = turf.circle([72.8777, 19.076], 2, { units: "miles" });
-  const [viewState, setViewState] = useState({
-    longitude: 72.8777,
-    latitude: 19.076,
-    zoom: 14,
-  });
 
-  const [mapZoom, setMapZoom] = useState(15);
-  const [selected, setSelected] = useState(null);
   console.log("mapzoom", mapZoom);
+
+  // Filtering logic - filter by search term, category, and distance
+  const complaintsArray = Array.isArray(allcomplaints) ? allcomplaints : [];
+
+  // Filter by search term, category, and distance
+  const filteredComplaints = complaintsArray.filter((complaint) => {
+    const matchesSearch =
+      complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      complaint.description.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesCategory =
+      selectedCategory === "all" || complaint.category === selectedCategory;
+
+    // Distance filter (simplified - you can implement proper geo distance later)
+    let matchesDistance = true;
+    if (selectedDistance !== "all" && complaint.location?.coordinates) {
+      const [lng, lat] = complaint.location.coordinates;
+      const userLocation = [72.8777, 19.076]; // Mumbai coordinates
+      const distance =
+        Math.sqrt(
+          Math.pow(lng - userLocation[0], 2) +
+            Math.pow(lat - userLocation[1], 2)
+        ) * 111; // Rough conversion to km
+
+      if (selectedDistance === "1km" && distance > 1) matchesDistance = false;
+      if (selectedDistance === "5km" && distance > 5) matchesDistance = false;
+      if (selectedDistance === "10km" && distance > 10) matchesDistance = false;
+    }
+
+    return matchesSearch && matchesCategory && matchesDistance;
+  });
 
   // Constant marker size of 20px but hide when zoomed out
   const shouldShowMarker = (zoom) => {
@@ -109,175 +176,212 @@ const MapView = () => {
   const getMarkerSize = () => {
     return 20; // Always 20px when visible
   };
-  const complaints = [
-    {
-      _id: "1",
-      title: "Large pothole causing traffic issues",
-      description:
-        "A massive pothole has formed on the main road near the bus stop, causing vehicles to swerve dangerously. The hole is approximately 2 feet deep and poses a serious risk to both cars and motorcycles.",
-      lat: 19.076,
-      lng: 72.8777,
-      image:
-        "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop",
-      media: [
-        "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=400&h=300&fit=crop",
-        "https://sample-videos.com/zip/10/mp4/SampleVideo_360x240_1mb.mp4",
-      ],
-    },
-    {
-      _id: "2",
-      title: "Broken street light creating safety hazard",
-      description:
-        "The street light on Park Avenue has been non-functional for over two weeks, creating a dangerous situation for pedestrians and drivers during nighttime hours.",
-      lat: 19.08,
-      lng: 72.885,
-      image:
-        "https://images.unsplash.com/photo-1518709268805-4e9042af2904?w=400&h=300&fit=crop",
-      media: [
-        "https://images.unsplash.com/photo-1518709268805-4e9042af2904?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1556075798-4825dfaaf498?w=400&h=300&fit=crop",
-      ],
-    },
-    {
-      _id: "3",
-      title: "Illegal garbage dumping in residential area",
-      description:
-        "Large amounts of construction debris and household waste have been illegally dumped in the vacant lot behind the residential complex, attracting pests and creating health concerns.",
-      lat: 19.07,
-      lng: 72.87,
-      image:
-        "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=400&h=300&fit=crop",
-      media: [
-        "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1611273426858-450d8e3c9fce?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1607429715127-c5b18b6b9e5f?w=400&h=300&fit=crop",
-      ],
-    },
-    {
-      _id: "4",
-      title: "Water leakage from municipal pipeline",
-      description:
-        "A major water leak from the underground municipal pipeline is causing flooding on the sidewalk and wasting thousands of gallons of clean water daily.",
-      lat: 19.085,
-      lng: 72.875,
-      image:
-        "https://images.unsplash.com/photo-1581833971358-2c8b550f87b3?w=400&h=300&fit=crop",
-      media: [
-        "https://images.unsplash.com/photo-1581833971358-2c8b550f87b3?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1584464491033-06628f3a6b7b?w=400&h=300&fit=crop",
-        "https://sample-videos.com/zip/10/mp4/SampleVideo_640x360_2mb.mp4",
-      ],
-    },
-    {
-      _id: "5",
-      title: "Damaged traffic signal causing confusion",
-      description:
-        "The traffic signal at the main intersection is malfunctioning, with lights showing conflicting signals. This has resulted in near-miss accidents and traffic congestion.",
-      lat: 19.065,
-      lng: 72.89,
-      image:
-        "https://images.unsplash.com/photo-1530569673472-307dc017a82d?w=400&h=300&fit=crop",
-      media: [
-        "https://images.unsplash.com/photo-1530569673472-307dc017a82d?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=300&fit=crop",
-      ],
-    },
-    {
-      _id: "6",
-      title: "Overgrown vegetation blocking sidewalk",
-      description:
-        "Trees and bushes along the pedestrian walkway have grown out of control, forcing people to walk on the busy road instead of using the sidewalk safely.",
-      lat: 19.09,
-      lng: 72.865,
-      image:
-        "https://images.unsplash.com/photo-1574263867128-0945d9eb8dbc?w=400&h=300&fit=crop",
-      media: [
-        "https://images.unsplash.com/photo-1574263867128-0945d9eb8dbc?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1520637836862-4d197d17c90a?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop",
-      ],
-    },
-    {
-      _id: "7",
-      title: "Broken manhole cover poses danger",
-      description:
-        "A manhole cover on the residential street has completely broken and fallen into the drain, creating a dangerous hole that could cause serious accidents, especially at night.",
-      lat: 19.072,
-      lng: 72.88,
-      image:
-        "https://images.unsplash.com/photo-1604580864967-7c5b2d946a92?w=400&h=300&fit=crop",
-      media: [
-        "https://images.unsplash.com/photo-1604580864967-7c5b2d946a92?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1607706189992-eae578626c86?w=400&h=300&fit=crop",
-      ],
-    },
-    {
-      _id: "8",
-      title: "Public park playground equipment damaged",
-      description:
-        "Several pieces of playground equipment in the community park are broken and potentially dangerous for children, including swings with broken chains and slides with sharp edges.",
-      lat: 19.082,
-      lng: 72.872,
-      image:
-        "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400&h=300&fit=crop",
-      media: [
-        "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1585239834423-4f11c16a029c?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1583912267550-17d8b5c8e6a4?w=400&h=300&fit=crop",
-      ],
-    },
-    {
-      _id: "9",
-      title: "Stray dogs creating safety concerns",
-      description:
-        "A pack of stray dogs has taken residence near the school entrance, causing fear among children and parents. Several incidents of aggressive behavior have been reported.",
-      lat: 19.078,
-      lng: 72.888,
-      image:
-        "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400&h=300&fit=crop",
-      media: [
-        "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1555685812-4b943f1cb0eb?w=400&h=300&fit=crop",
-      ],
-    },
-    {
-      _id: "10",
-      title: "Bus stop shelter completely destroyed",
-      description:
-        "The public bus shelter on Main Road has been vandalized and is now completely unusable, leaving commuters without protection from weather conditions during their wait.",
-      lat: 19.068,
-      lng: 72.883,
-      image:
-        "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=400&h=300&fit=crop",
-      media: [
-        "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1558882224-dda166733046?w=400&h=300&fit=crop",
-        "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=400&h=300&fit=crop",
-      ],
-    },
-  ];
 
   return (
-    <Map
-      mapLib={import("maplibre-gl")}
-      initialViewState={viewState}
-      onMove={(evt) => {
-        setMapZoom(evt.viewState.zoom);
-        const newCenter = [evt.viewState.longitude, evt.viewState.latitude];
-        // Only update the view state if the center is inside the geofence
-        if (turf.booleanPointInPolygon(newCenter, GEOFENCE)) {
-          setViewState(evt.viewState);
-        }
-      }}
-      style={{ width: "100%", height: "100vh" }}
-      mapStyle="https://tiles.openfreemap.org/styles/bright"
-    >
-      <NavigationControl position="top-right" />
-      <GeolocateControl position="top-right" />
+    <div style={{ position: "relative", width: "100%", height: "100vh" }}>
+      {/* Header Section with Search and Filters */}
+      <div
+        className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white shadow-sm z-20 rounded-2xl border-2 border-blue-900"
+        style={{
+          backgroundColor: "#ffffff",
+          width: "80%",
+          maxWidth: "900px",
+        }}
+      >
+        <div className="px-4 py-3">
+          {/* Search and Filter Bar */}
+          <div className="flex items-center gap-4">
+            {/* Filter Icon and Search Bar Container */}
+            <div className="relative flex-1 flex items-center gap-2">
+              {/* Filter Icon Button */}
+              <div className="relative" ref={filterDropdownRef}>
+                <button
+                  onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                  className="p-3 hover:opacity-80 text-white rounded-xl transition-all duration-200 border"
+                  style={{
+                    backgroundColor: "#0f70cd",
+                    borderColor: "#0f70cd",
+                  }}
+                >
+                  <FaFilter size={16} />
+                </button>
 
-      {/* Geofence circle */}
-      {/* <Source id="geofence" type="geojson" data={GEOFENCE}>
+                {/* Filter Dropdown */}
+                {showFilterDropdown && (
+                  <div
+                    className="absolute top-full left-0 mt-2 w-56 rounded-xl shadow-lg border z-20"
+                    style={{
+                      backgroundColor: "#ffffff",
+                      borderColor: "#0f70cd",
+                    }}
+                  >
+                    <div className="p-3">
+                      <h3
+                        className="text-sm font-semibold mb-3"
+                        style={{ color: "#0f70cd" }}
+                      >
+                        Filter Options
+                      </h3>
+
+                      {/* Distance Filter */}
+                      <div className="mb-4">
+                        <label
+                          className="block text-xs font-medium mb-2"
+                          style={{ color: "#ec8b0a" }}
+                        >
+                          Distance
+                        </label>
+                        <div className="space-y-2">
+                          {["all", "1km", "5km", "10km"].map((distance) => (
+                            <label key={distance} className="flex items-center">
+                              <input
+                                type="radio"
+                                name="distance"
+                                value={distance}
+                                checked={selectedDistance === distance}
+                                onChange={(e) =>
+                                  setSelectedDistance(e.target.value)
+                                }
+                                className="h-3 w-3 border-gray-300 focus:ring-2"
+                                style={{ accentColor: "#0f70cd" }}
+                              />
+                              <span className="ml-2 text-sm text-gray-700 capitalize">
+                                {distance === "all"
+                                  ? "All Distances"
+                                  : `Within ${distance}`}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Category Filter */}
+                      <div className="mb-4">
+                        <label
+                          className="block text-xs font-medium mb-2"
+                          style={{ color: "#ec8b0a" }}
+                        >
+                          Category
+                        </label>
+                        <div className="space-y-2">
+                          {[
+                            "all",
+                            "infrastructure",
+                            "safety",
+                            "sanitation",
+                            "environment",
+                          ].map((category) => (
+                            <label key={category} className="flex items-center">
+                              <input
+                                type="radio"
+                                name="category"
+                                value={category}
+                                checked={selectedCategory === category}
+                                onChange={(e) =>
+                                  setSelectedCategory(e.target.value)
+                                }
+                                className="h-3 w-3 border-gray-300 focus:ring-2"
+                                style={{ accentColor: "#0f70cd" }}
+                              />
+                              <span className="ml-2 text-sm text-gray-700 capitalize">
+                                {category === "all"
+                                  ? "All Categories"
+                                  : category}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div
+                        className="flex gap-2 pt-3 border-t"
+                        style={{ borderColor: "#0f70cd" }}
+                      >
+                        <button
+                          onClick={() => {
+                            setSelectedCategory("all");
+                            setSelectedDistance("all");
+                          }}
+                          className="flex-1 px-3 py-2 text-xs font-medium text-white rounded-lg transition-colors duration-200 hover:opacity-80"
+                          style={{ backgroundColor: "#ec8b0a" }}
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FaSearch className="text-gray-400" size={16} />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search complaints on map..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200"
+                  style={{
+                    borderColor: "#0f70cd",
+                    backgroundColor: "#ffffff",
+                    "--tw-ring-color": "#0f70cd",
+                  }}
+                />
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* Status Legend - Bottom Left */}
+      <div
+        className="absolute bottom-20 left-4 bg-white shadow-lg rounded-lg border p-3 z-20"
+        style={{ borderColor: "#0f70cd" }}
+      >
+        <h4 className="text-xs font-semibold mb-2" style={{ color: "#0f70cd" }}>
+          Status Colors
+        </h4>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2 text-xs">
+            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+            <span>Pending</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+            <span>In Progress</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+            <span>Resolved</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Map Component */}
+      <Map
+        mapLib={import("maplibre-gl")}
+        initialViewState={viewState}
+        onMove={(evt) => {
+          setMapZoom(evt.viewState.zoom);
+          const newCenter = [evt.viewState.longitude, evt.viewState.latitude];
+          // Only update the view state if the center is inside the geofence
+          if (turf.booleanPointInPolygon(newCenter, GEOFENCE)) {
+            setViewState(evt.viewState);
+          }
+        }}
+        style={{ width: "100%", height: "100vh", paddingTop: "100px" }}
+        mapStyle="https://tiles.openfreemap.org/styles/bright"
+      >
+        <NavigationControl position="top-right" />
+        <GeolocateControl position="top-right" />
+
+        {/* Geofence circle */}
+        {/* <Source id="geofence" type="geojson" data={GEOFENCE}>
         <Layer
           id="geofence-fill"
           type="fill"
@@ -297,285 +401,422 @@ const MapView = () => {
         />
       </Source> */}
 
-      {complaints.map((c) => {
-        // Don't render marker if zoomed out too much
-        if (!shouldShowMarker(mapZoom)) return null;
+        {filteredComplaints.map((complaint) => {
+          // Don't render marker if zoomed out too much
+          if (!shouldShowMarker(mapZoom)) return null;
 
-        const markerSize = getMarkerSize();
+          // Skip complaints without valid location data
+          if (
+            !complaint.location ||
+            !complaint.location.coordinates ||
+            complaint.location.coordinates.length !== 2
+          ) {
+            return null;
+          }
 
-        return (
-          <Marker
-            key={c._id}
-            longitude={c.lng}
-            latitude={c.lat}
-            anchor="center"
-            onClick={(e) => {
-              e.originalEvent.stopPropagation();
-              setSelected(c);
-            }}
-          >
-            {/* Simple small dot marker - constant 20px when visible */}
-            <div
-              style={{
-                width: markerSize,
-                height: markerSize,
-                borderRadius: "50%",
-                backgroundColor: "#ff4444", // Red color for all complaints
-                border: "2px solid white",
-                cursor: "pointer",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
-              }}
-            />
-          </Marker>
-        );
-      })}
+          const [longitude, latitude] = complaint.location.coordinates;
+          const markerSize = getMarkerSize();
 
-      {selected && (
-        <>
-          {/* Overlay to close popup when clicked */}
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0,0,0,0.3)",
-              zIndex: 1000,
-            }}
-            onClick={() => setSelected(null)}
-          />
-
-          {/* Left sidebar popup */}
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              width: 400,
-              height: "100vh",
-              backgroundColor: "white",
-              zIndex: 1001,
-              overflowY: "auto",
-              boxShadow: "2px 0 20px rgba(0,0,0,0.15)",
-              fontFamily: "system-ui, -apple-system, sans-serif",
-            }}
-          >
-            {/* Close button */}
-            <button
-              onClick={() => setSelected(null)}
-              style={{
-                position: "absolute",
-                top: 16,
-                right: 16,
-                width: 32,
-                height: 32,
-                border: "none",
-                borderRadius: "50%",
-                backgroundColor: "rgba(0,0,0,0.1)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 18,
-                color: "#666",
-                zIndex: 10,
+          return (
+            <Marker
+              key={complaint._id}
+              longitude={longitude}
+              latitude={latitude}
+              anchor="center"
+              onClick={(e) => {
+                e.originalEvent.stopPropagation();
+                setSelected(complaint);
               }}
             >
-              ×
-            </button>
-
-            {/* Main image */}
-            <div style={{ width: "100%", height: 200, overflow: "hidden" }}>
-              <img
-                src={selected.image}
-                alt="/no-img"
+              {/* Simple small dot marker - constant 20px when visible */}
+              <div
                 style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
+                  width: markerSize,
+                  height: markerSize,
+                  borderRadius: "50%",
+                  backgroundColor:
+                    complaint.status === "resolved"
+                      ? "#10B981"
+                      : complaint.status === "in-progress"
+                      ? "#F59E0B"
+                      : "#EF4444",
+                  border: "2px solid white",
+                  cursor: "pointer",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
                 }}
               />
-            </div>
+            </Marker>
+          );
+        })}
 
-            {/* Content */}
-            <div style={{ padding: 24 }}>
-              {/* Title */}
-              <h2
+        {selected && (
+          <>
+            {/* Overlay to close popup when clicked */}
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0,0,0,0.3)",
+                zIndex: 1000,
+              }}
+              onClick={() => setSelected(null)}
+            />
+
+            {/* Left sidebar popup */}
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                width: 400,
+                height: "100vh",
+                backgroundColor: "white",
+                zIndex: 1001,
+                overflowY: "auto",
+                boxShadow: "2px 0 20px rgba(0,0,0,0.15)",
+                fontFamily: "system-ui, -apple-system, sans-serif",
+              }}
+            >
+              {/* Close button */}
+              <button
+                onClick={() => setSelected(null)}
                 style={{
-                  margin: "0 0 16px 0",
-                  fontSize: 20,
-                  fontWeight: 600,
-                  color: "#1F2937",
-                  lineHeight: "1.4",
-                  paddingRight: 40, // Space for close button
+                  position: "absolute",
+                  top: 16,
+                  right: 16,
+                  width: 32,
+                  height: 32,
+                  border: "none",
+                  borderRadius: "50%",
+                  backgroundColor: "rgba(0,0,0,0.1)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 18,
+                  color: "#666",
+                  zIndex: 10,
                 }}
               >
-                {selected.title}
-              </h2>
+                ×
+              </button>
 
-              {/* Location */}
-              <div style={{ marginBottom: 16 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    marginBottom: 8,
-                  }}
-                >
-                  <FaMapMarkerAlt
-                    size={18}
-                    color="#ec8b0a"
-                    style={{ marginRight: 8 }}
-                  />
-                  <span
-                    style={{ fontSize: 14, color: "#6B7280", fontWeight: 500 }}
-                  >
-                    Location
-                  </span>
-                </div>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 14,
-                    color: "#374151",
-                    paddingLeft: 24,
-                  }}
-                >
-                  {selected.lat.toFixed(4)}, {selected.lng.toFixed(4)}
-                </p>
-              </div>
-
-              {/* Description */}
-              <div style={{ marginBottom: 24 }}>
-                <h3
-                  style={{
-                    margin: "0 0 8px 0",
-                    fontSize: 16,
-                    fontWeight: 600,
-                    color: "#1F2937",
-                  }}
-                >
-                  Description
-                </h3>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 14,
-                    color: "#6B7280",
-                    lineHeight: "1.6",
-                  }}
-                >
-                  {selected.description}
-                </p>
-              </div>
-
-              {/* Media Section */}
-              <div>
-                <h3
-                  style={{
-                    margin: "0 0 12px 0",
-                    fontSize: 16,
-                    fontWeight: 600,
-                    color: "#1F2937",
-                  }}
-                >
-                  Media ({selected.media?.length || 0})
-                </h3>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, 1fr)",
-                    gap: 8,
-                  }}
-                >
-                  {selected.media?.map((mediaUrl, index) => (
-                    <div
-                      key={index}
+              {/* Main image */}
+              <div style={{ width: "100%", height: 200, overflow: "hidden" }}>
+                {selected.media && selected.media.length > 0 ? (
+                  selected.media[0].type === "video" ? (
+                    <video
+                      src={selected.media[0].url}
+                      poster="/no-video.png"
+                      controls
                       style={{
-                        borderRadius: 8,
-                        overflow: "hidden",
-                        aspectRatio: "1",
-                        backgroundColor: "#F3F4F6",
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  ) : (
+                    <img
+                      src={selected.media[0].url}
+                      alt="Complaint"
+                      onError={(e) => {
+                        e.target.src = "/no-img.png";
+                      }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  )
+                ) : (
+                  <img
+                    src="/no-img.png"
+                    alt="No media"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Content */}
+              <div style={{ padding: 24 }}>
+                {/* Title */}
+                <h2
+                  style={{
+                    margin: "0 0 16px 0",
+                    fontSize: 20,
+                    fontWeight: 600,
+                    color: "#1F2937",
+                    lineHeight: "1.4",
+                    paddingRight: 40, // Space for close button
+                  }}
+                >
+                  {selected.title}
+                </h2>
+
+                {/* Location */}
+                <div style={{ marginBottom: 16 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <FaMapMarkerAlt
+                      size={18}
+                      color="#ec8b0a"
+                      style={{ marginRight: 8 }}
+                    />
+                    <span
+                      style={{
+                        fontSize: 14,
+                        color: "#6B7280",
+                        fontWeight: 500,
                       }}
                     >
-                      {mediaUrl.includes(".mp4") ? (
-                        <video
-                          src={mediaUrl}
-                          poster="/no-video.png"
-                          controls
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
-                          }}
-                        />
-                      ) : (
-                        <img
-                          src={mediaUrl}
-                          alt="Complaint media"
-                          onError={(e) => {
-                            e.target.src = "/no-img.png";
-                          }}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
-                            cursor: "pointer",
-                          }}
-                          onClick={() => window.open(mediaUrl, "_blank")}
-                        />
-                      )}
-                    </div>
-                  ))}
+                      Location
+                    </span>
+                  </div>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 14,
+                      color: "#374151",
+                      paddingLeft: 24,
+                    }}
+                  >
+                    {selected.location?.namedAddress ||
+                      `${selected.location?.coordinates[1]?.toFixed(
+                        4
+                      )}, ${selected.location?.coordinates[0]?.toFixed(4)}`}
+                  </p>
                 </div>
+
+                {/* Status and Category */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        padding: "4px 8px",
+                        borderRadius: 4,
+                        backgroundColor:
+                          selected.status === "resolved"
+                            ? "#10B981"
+                            : selected.status === "in-progress"
+                            ? "#F59E0B"
+                            : "#EF4444",
+                        color: "white",
+                        fontWeight: 500,
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {selected.status}
+                    </span>
+                    {selected.category && (
+                      <span
+                        style={{
+                          fontSize: 12,
+                          padding: "4px 8px",
+                          borderRadius: 4,
+                          backgroundColor: "#E5E7EB",
+                          color: "#374151",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {selected.category}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Voting Stats */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: "flex", gap: 16 }}>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 4 }}
+                    >
+                      <span style={{ color: "#10B981", fontSize: 16 }}>👍</span>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          color: "#374151",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {selected.upvote || 0}
+                      </span>
+                    </div>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 4 }}
+                    >
+                      <span style={{ color: "#EF4444", fontSize: 16 }}>👎</span>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          color: "#374151",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {selected.downvote || 0}
+                      </span>
+                    </div>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 4 }}
+                    >
+                      <span style={{ color: "#6B7280", fontSize: 16 }}>💬</span>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          color: "#374151",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {selected.comments?.length || 0}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div style={{ marginBottom: 24 }}>
+                  <h3
+                    style={{
+                      margin: "0 0 8px 0",
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: "#1F2937",
+                    }}
+                  >
+                    Description
+                  </h3>
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 14,
+                      color: "#6B7280",
+                      lineHeight: "1.6",
+                    }}
+                  >
+                    {selected.description || "No description provided."}
+                  </p>
+                </div>
+
+                {/* Media Section */}
+                <div>
+                  <h3
+                    style={{
+                      margin: "0 0 12px 0",
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: "#1F2937",
+                    }}
+                  >
+                    Media ({selected.media?.length || 0})
+                  </h3>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, 1fr)",
+                      gap: 8,
+                    }}
+                  >
+                    {selected.media?.map((mediaItem, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          borderRadius: 8,
+                          overflow: "hidden",
+                          aspectRatio: "1",
+                          backgroundColor: "#F3F4F6",
+                        }}
+                      >
+                        {mediaItem.type === "video" ? (
+                          <video
+                            src={mediaItem.url}
+                            poster="/no-video.png"
+                            controls
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                            }}
+                          />
+                        ) : (
+                          <img
+                            src={mediaItem.url}
+                            alt="Complaint media"
+                            onError={(e) => {
+                              e.target.src = "/no-img.png";
+                            }}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              cursor: "pointer",
+                            }}
+                            onClick={() => window.open(mediaItem.url, "_blank")}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* View details button */}
+                <a
+                  href={`/complaint/${selected._id}`}
+                  style={{
+                    display: "inline-block",
+                    padding: "12px 24px",
+                    backgroundColor: "#ec8b0a",
+                    color: "white",
+                    textDecoration: "none",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    marginTop: 24,
+                    transition: "background-color 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = "#2563EB";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = "#3B82F6";
+                  }}
+                >
+                  View Full Details →
+                </a>
               </div>
-
-              {/* View details button */}
-              <a
-                href={`/complaint/${selected._id}`}
-                style={{
-                  display: "inline-block",
-                  padding: "12px 24px",
-                  backgroundColor: "#ec8b0a",
-                  color: "white",
-                  textDecoration: "none",
-                  borderRadius: 8,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  marginTop: 24,
-                  transition: "background-color 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = "#2563EB";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = "#3B82F6";
-                }}
-              >
-                View Full Details →
-              </a>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
 
-      {/* Floating Home Button - Bottom Right */}
-      <Link
-        to="/"
-        className="fixed bottom-6 right-6 w-14 h-14 flex items-center justify-center rounded-full shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-3xl group z-50 border-2"
-        style={{
-          background: "linear-gradient(135deg, #0f70cd 0%, #2563eb 100%)",
-          borderColor: "#0f70cd",
-        }}
-        title="Back to Home"
-      >
-        <FaHome
-          size={20}
-          className="text-white group-hover:animate-pulse drop-shadow-sm"
-        />
-      </Link>
-    </Map>
+        {/* Floating Home Button - Bottom Right */}
+        <Link
+          to="/"
+          className="fixed bottom-6 right-6 w-14 h-14 flex items-center justify-center rounded-full shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-3xl group z-50 border-2"
+          style={{
+            background: "linear-gradient(135deg, #0f70cd 0%, #2563eb 100%)",
+            borderColor: "#0f70cd",
+          }}
+          title="Back to Home"
+        >
+          <FaHome
+            size={20}
+            className="text-white group-hover:animate-pulse drop-shadow-sm"
+          />
+        </Link>
+      </Map>
+    </div>
   );
 };
 
