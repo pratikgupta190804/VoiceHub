@@ -263,294 +263,362 @@ const ComplaintFormPage = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 bg-white rounded-lg shadow-md">
-      <h1 className="text-2xl font-bold mb-6">Submit a Complaint</h1>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Media Upload Section */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">
-            Upload Images/Videos <span className="text-red-500">*</span>
-          </label>
-
-          <div
-            className="border-2 border-dashed border-gray-300 rounded-md p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50"
-            onClick={() => fileInputRef.current.click()}
-          >
-            <div className="flex space-x-4 mb-2">
-              <Camera size={30} className="text-gray-400" />
-              <Video size={30} className="text-gray-400" />
-            </div>
-            <p className="text-sm text-gray-600">
-              Click to upload or drag and drop
-            </p>
-            <p className="text-xs text-gray-500">
-              Images or videos (max 5MB each)
-            </p>
-            <p className="text-xs text-gray-400 mt-2 flex items-center">
-              <AlertTriangle size={14} className="mr-1" />
-              Only original media will be processed
-            </p>
-            <input
-              type="file"
-              ref={fileInputRef}
-              multiple
-              accept="image/*,video/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 pt-20 pb-8 px-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Hero Section */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full mb-4 shadow-lg">
+            <AlertTriangle className="text-white" size={28} />
           </div>
-
-          {/* Media Preview */}
-          {mediaFiles.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-              {mediaFiles.map((media, index) => (
-                <div
-                  key={index}
-                  className="relative rounded-md overflow-hidden h-32 group cursor-pointer"
-                  onClick={() => openPreview(media)}
-                >
-                  {media.type === "image" ? (
-                    <img
-                      src={media.preview}
-                      alt={`Upload ${index}`}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="relative h-full w-full">
-                      <video
-                        src={media.preview}
-                        className="h-full w-full object-cover"
-                        muted
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center">
-                          <Video size={16} className="text-white" />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Delete button and filename */}
-                  <div className="absolute inset-0 flex items-end justify-between p-1 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveFile(index);
-                      }}
-                      className="text-white hover:text-red-400"
-                    >
-                      <XCircle size={20} />
-                    </button>
-                    <p className="text-xs text-white truncate max-w-[80%]">
-                      {media.name}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Location Section */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">
-            Location <span className="text-red-500">*</span>
-          </label>
-
-          <div className="flex space-x-2 mb-2">
-            <button
-              type="button"
-              className={`px-3 py-1 text-sm rounded-md ${
-                locationType === "manual"
-                  ? "bg-blue-100 text-blue-700"
-                  : "bg-gray-100"
-              }`}
-              onClick={() => setLocationType("manual")}
-            >
-              Manual Input
-            </button>
-            <button
-              type="button"
-              className={`px-3 py-1 text-sm rounded-md ${
-                locationType === "auto"
-                  ? "bg-blue-100 text-blue-700"
-                  : "bg-gray-100"
-              }`}
-              onClick={handleAutoDetectLocation}
-            >
-              Auto Detect
-            </button>
-            <button
-              type="button"
-              className={`px-3 py-1 text-sm rounded-md ${
-                locationType === "map"
-                  ? "bg-blue-100 text-blue-700"
-                  : "bg-gray-100"
-              }`}
-              onClick={handleMapSelection}
-            >
-              Use Map
-            </button>
-          </div>
-
-          <div className="relative">
-            <MapPin
-              size={18}
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-            />
-            <input
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="Enter location"
-              className="pl-10 w-full border rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={locationType !== "manual"}
-              required
-            />
-          </div>
-        </div>
-
-        {/* Description Section */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium">
-            Description <span className="text-gray-500">(optional)</span>
-          </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Describe the issue..."
-            className="w-full border rounded-md p-2 h-32 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-
-        {/* Submit Button */}
-        <div>
-          <button
-            type="submit"
-            disabled={isLoading || isCheckingAI}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-300 flex items-center justify-center"
-          >
-            {isCheckingAI ? (
-              <>
-                <Shield size={18} className="animate-pulse mr-2" />
-                Checking for AI content...
-              </>
-            ) : isLoading ? (
-              <>
-                <Loader size={18} className="animate-spin mr-2" />
-                Submitting...
-              </>
-            ) : (
-              "Submit Complaint"
-            )}
-          </button>
-          <p className="text-xs text-gray-500 mt-2 text-center">
-            Your complaint will be verified and posted to social media.
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
+            Submit Your Complaint
+          </h1>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            Report issues in your community and make your voice heard. We'll
+            help amplify your concerns to the right authorities.
           </p>
         </div>
-      </form>
 
-      {/* Media Preview Modal */}
-      {previewItem && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="max-w-4xl max-h-[90vh] relative">
-            <button
-              type="button"
-              onClick={closePreview}
-              className="absolute -top-10 right-0 text-white hover:text-red-400"
-            >
-              <XCircle size={24} />
-            </button>
-            {previewItem.type === "image" ? (
-              <img
-                src={previewItem.preview}
-                alt="Preview"
-                className="max-h-[90vh] max-w-full object-contain"
-              />
-            ) : (
-              <video
-                src={previewItem.preview}
-                className="max-h-[90vh] max-w-full"
-                controls
-                autoPlay
-              />
-            )}
-            <p className="text-white text-sm mt-2">{previewItem.name}</p>
-          </div>
-        </div>
-      )}
+        {/* Main Form Card */}
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
+          <div className="p-8">
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* Media Upload Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-green-600 rounded-lg flex items-center justify-center">
+                    <Upload className="text-white" size={18} />
+                  </div>
+                  <label className="text-lg font-semibold text-gray-800">
+                    Upload Evidence <span className="text-red-500">*</span>
+                  </label>
+                </div>
 
-      {/* AI Content Warning Modal */}
-      {showAiWarning && aiDetectionResults && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center mb-4">
-              <AlertTriangle className="text-red-500 mr-3" size={24} />
-              <h2 className="text-lg font-bold text-red-700">
-                AI Generated Content Detected
-              </h2>
-            </div>
+                <div
+                  className="border-2 border-dashed border-blue-300 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-all duration-300 bg-gradient-to-br from-blue-25 to-indigo-25"
+                  onClick={() => fileInputRef.current.click()}
+                >
+                  <div className="flex space-x-6 mb-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                      <Camera size={28} className="text-white" />
+                    </div>
+                    <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                      <Video size={28} className="text-white" />
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                    Upload Your Evidence
+                  </h3>
+                  <p className="text-gray-600 mb-2">
+                    Click to upload or drag and drop your photos and videos
+                  </p>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Support: JPG, PNG, MP4, MOV (max 5MB each)
+                  </p>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center">
+                    <AlertTriangle
+                      size={16}
+                      className="text-amber-600 mr-2 flex-shrink-0"
+                    />
+                    <p className="text-sm text-amber-800">
+                      Only upload original, authentic media for verification
+                    </p>
+                  </div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    multiple
+                    accept="image/*,video/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </div>
 
-            <div className="mb-4">
-              <p className="text-gray-700 mb-3">
-                Our system has detected that some of your uploaded files may
-                contain AI-generated content. To maintain authenticity, only
-                original content is allowed.
-              </p>
+                {/* Media Preview */}
+                {mediaFiles.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                      <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                      Uploaded Files ({mediaFiles.length})
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {mediaFiles.map((media, index) => (
+                        <div
+                          key={index}
+                          className="relative rounded-md overflow-hidden h-32 group cursor-pointer"
+                          onClick={() => openPreview(media)}
+                        >
+                          {media.type === "image" ? (
+                            <img
+                              src={media.preview}
+                              alt={`Upload ${index}`}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="relative h-full w-full">
+                              <video
+                                src={media.preview}
+                                className="h-full w-full object-cover"
+                                muted
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center">
+                                  <Video size={16} className="text-white" />
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
-              <div className="bg-red-50 p-3 rounded-md mb-3">
-                <p className="text-sm text-red-800 font-medium">
-                  Detection Results:
-                </p>
-                <ul className="text-sm text-red-700 mt-1">
-                  <li>
-                    • {aiDetectionResults.aiDetectedCount} of{" "}
-                    {aiDetectionResults.totalFiles} files flagged as
-                    AI-generated
-                  </li>
-                  {aiDetectionResults.files.map(
-                    (file, index) =>
-                      file.isAIGenerated && (
-                        <li key={index} className="ml-2">
-                          • {file.filename}: {Math.round(file.confidence * 100)}
-                          % AI confidence
-                        </li>
-                      )
-                  )}
-                </ul>
+                          {/* Delete button and filename */}
+                          <div className="absolute inset-0 flex items-end justify-between p-1 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveFile(index);
+                              }}
+                              className="text-white hover:text-red-400"
+                            >
+                              <XCircle size={20} />
+                            </button>
+                            <p className="text-xs text-white truncate max-w-[80%]">
+                              {media.name}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <p className="text-gray-600 text-sm">
-                Please remove the flagged files and upload only original, non-AI
-                generated content.
-              </p>
-            </div>
+              {/* Location Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-r from-red-400 to-red-600 rounded-lg flex items-center justify-center">
+                    <MapPin className="text-white" size={18} />
+                  </div>
+                  <label className="text-lg font-semibold text-gray-800">
+                    Location Details <span className="text-red-500">*</span>
+                  </label>
+                </div>
 
-            <div className="flex space-x-3">
-              <button
-                onClick={() => {
-                  setShowAiWarning(false);
-                  setAiDetectionResults(null);
-                }}
-                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                I'll Upload Different Files
-              </button>
-              <button
-                onClick={() => {
-                  setShowAiWarning(false);
-                  setAiDetectionResults(null);
-                }}
-                className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
-              >
-                Close
-              </button>
-            </div>
+                <div className="flex space-x-3 mb-4">
+                  <button
+                    type="button"
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                      locationType === "manual"
+                        ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                    onClick={() => setLocationType("manual")}
+                  >
+                    📍 Manual Input
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                      locationType === "auto"
+                        ? "bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                    onClick={handleAutoDetectLocation}
+                  >
+                    🎯 Auto Detect
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                      locationType === "map"
+                        ? "bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                    onClick={handleMapSelection}
+                  >
+                    🗺️ Use Map
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <MapPin
+                    size={20}
+                    className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
+                  />
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="Enter your location (e.g., Palghar, Maharashtra, 401404)"
+                    className="pl-12 w-full border-2 border-gray-200 rounded-xl p-4 text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-gray-50 focus:bg-white"
+                    disabled={locationType !== "manual"}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Description Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-r from-purple-400 to-purple-600 rounded-lg flex items-center justify-center">
+                    <AlertTriangle className="text-white" size={18} />
+                  </div>
+                  <label className="text-lg font-semibold text-gray-800">
+                    Describe the Issue{" "}
+                    <span className="text-gray-500 text-sm font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                </div>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Provide details about the issue you're reporting. Be specific about what happened, when it occurred, and any other relevant information..."
+                  className="w-full border-2 border-gray-200 rounded-xl p-4 h-32 text-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all bg-gray-50 focus:bg-white resize-none"
+                />
+                <p className="text-sm text-gray-500">
+                  💡 Tip: Include specific details like time, date, and
+                  circumstances for better resolution
+                </p>
+              </div>
+
+              {/* Submit Button */}
+              <div className="pt-4">
+                <button
+                  type="submit"
+                  disabled={isLoading || isCheckingAI}
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 px-6 rounded-xl text-lg font-semibold hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:from-gray-400 disabled:to-gray-500 flex items-center justify-center transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+                >
+                  {isCheckingAI ? (
+                    <>
+                      <Shield size={22} className="animate-pulse mr-3" />
+                      🔍 Checking for AI content...
+                    </>
+                  ) : isLoading ? (
+                    <>
+                      <Loader size={22} className="animate-spin mr-3" />
+                      📤 Submitting your complaint...
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle size={22} className="mr-3" />
+                      🚀 Submit Complaint
+                    </>
+                  )}
+                </button>
+                <div className="mt-4 text-center">
+                  <p className="text-sm text-gray-600 mb-2">
+                    🛡️ Your complaint will be verified and posted to social
+                    media
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    We ensure authentic content reaches the right authorities
+                  </p>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
-      )}
+
+        {/* Media Preview Modal */}
+        {previewItem && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="max-w-4xl max-h-[90vh] relative">
+              <button
+                type="button"
+                onClick={closePreview}
+                className="absolute -top-10 right-0 text-white hover:text-red-400"
+              >
+                <XCircle size={24} />
+              </button>
+              {previewItem.type === "image" ? (
+                <img
+                  src={previewItem.preview}
+                  alt="Preview"
+                  className="max-h-[90vh] max-w-full object-contain"
+                />
+              ) : (
+                <video
+                  src={previewItem.preview}
+                  className="max-h-[90vh] max-w-full"
+                  controls
+                  autoPlay
+                />
+              )}
+              <p className="text-white text-sm mt-2">{previewItem.name}</p>
+            </div>
+          </div>
+        )}
+
+        {/* AI Content Warning Modal */}
+        {showAiWarning && aiDetectionResults && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-center mb-4">
+                <AlertTriangle className="text-red-500 mr-3" size={24} />
+                <h2 className="text-lg font-bold text-red-700">
+                  AI Generated Content Detected
+                </h2>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-gray-700 mb-3">
+                  Our system has detected that some of your uploaded files may
+                  contain AI-generated content. To maintain authenticity, only
+                  original content is allowed.
+                </p>
+
+                <div className="bg-red-50 p-3 rounded-md mb-3">
+                  <p className="text-sm text-red-800 font-medium">
+                    Detection Results:
+                  </p>
+                  <ul className="text-sm text-red-700 mt-1">
+                    <li>
+                      • {aiDetectionResults.aiDetectedCount} of{" "}
+                      {aiDetectionResults.totalFiles} files flagged as
+                      AI-generated
+                    </li>
+                    {aiDetectionResults.files.map(
+                      (file, index) =>
+                        file.isAIGenerated && (
+                          <li key={index} className="ml-2">
+                            • {file.filename}:{" "}
+                            {Math.round(file.confidence * 100)}% AI confidence
+                          </li>
+                        )
+                    )}
+                  </ul>
+                </div>
+
+                <p className="text-gray-600 text-sm">
+                  Please remove the flagged files and upload only original,
+                  non-AI generated content.
+                </p>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowAiWarning(false);
+                    setAiDetectionResults(null);
+                  }}
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  I'll Upload Different Files
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAiWarning(false);
+                    setAiDetectionResults(null);
+                  }}
+                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

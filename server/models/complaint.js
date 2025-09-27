@@ -20,7 +20,8 @@ const ComplaintSchema = new Schema({
 
   location: {
     type: { type: String, enum: ['Point'], default: 'Point' },
-    coordinates: { type: [Number], index: '2dsphere' } // [lng, lat]
+    coordinates: { type: [Number], index: '2dsphere' }, // [lng, lat]
+    namedAddress: { type: String, default: '' } // Human-readable address
   },
 
   authorities: [{ name: String, handle: String }],
