@@ -9,6 +9,7 @@ import SettingPage from "./Pages/SettingPage.jsx";
 import MapView from "./Pages/MapView.jsx";
 import ComplaintFormPage from "./Pages/ComplaintFormPage.jsx";
 import PostPage from "./Pages/PostPage.jsx";
+import ProfilePage from "./Pages/ProfilePage.jsx";
 
 const router = createBrowserRouter([
   {
@@ -21,6 +22,7 @@ const router = createBrowserRouter([
       { path: "/signup", element: <SignupPage /> },
       { path: "/settings", element: <SettingPage /> },
       { path: "/complaint", element: <PostPage /> },
+      { path: "/profile", element: <ProfilePage /> },
       {path: "/post-complaint" , element: <ComplaintFormPage /> },
     ],
   },

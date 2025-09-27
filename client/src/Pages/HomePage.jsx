@@ -8,6 +8,15 @@ import {
   FaFilter,
   FaSearch,
   FaClock,
+  FaChevronLeft,
+  FaChevronRight,
+  FaArrowUp,
+  FaArrowDown,
+  FaMapMarkerAlt,
+  FaShare,
+  FaComment,
+  FaPlus,
+  FaFire,
   FaChartLine,
   FaMap,
 } from "react-icons/fa";
@@ -23,6 +32,7 @@ const HomePage = () => {
   const { isFetchingComplains, allcomplaints, getAllComplaints } =
     useComplaintStore();
 
+  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (

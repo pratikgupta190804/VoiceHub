@@ -33,7 +33,13 @@ const userSchemsa = new mongoose.Schema(
       type: String,
       enum : ['english' , 'hindi' , 'marathi'],
       default : 'english',
-    }
+    },
+    complaints: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Complaint",
+      },
+    ],
   },
   {
     timestamps: true,

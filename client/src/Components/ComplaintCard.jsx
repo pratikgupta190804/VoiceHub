@@ -98,19 +98,12 @@ const ComplaintCard = ({ complaint }) => {
 
   return (
     <div
-      className="rounded-2xl shadow-sm hover:shadow-lg overflow-hidden border transition-all duration-300 hover:transform hover:-translate-y-1 complaint-card"
-      style={{
-        backgroundColor: "#FFFFFF",
-        borderColor: "#FFD95A",
-        borderWidth: "2px",
-      }}
+      className="rounded-2xl shadow-sm hover:shadow-lg overflow-hidden border transition-all duration-300 hover:transform hover:-translate-y-1"
+      style={{ backgroundColor: "#ffffff", borderColor: "#0f70cd" }}
     >
       {/* Header with time */}
       <div className="flex items-center justify-end p-4 pb-2">
-        <span
-          className="text-xs font-medium font-inter"
-          style={{ color: "#C07F00" }}
-        >
+        <span className="text-xs font-medium" style={{ color: "#ec8b0a" }}>
           {formatTimeAgo(complaint.createdAt)}
         </span>
       </div>
