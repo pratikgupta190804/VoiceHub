@@ -1,0 +1,244 @@
+/* New Golden/Brown Color Palette Variables & Font System */
+:root {
+  --golden-yellow: #ffd95a;
+  --rich-brown: #c07f00;
+  --dark-brown: #4c3d3d;
+  --pure-white: #ffffff;
+  --pure-black: #000000;
+
+  /* Font Family Variables */
+  --font-heading: "Playfair Display", serif;
+  --font-body: "Inter", sans-serif;
+  --font-ui: "Poppins", sans-serif;
+  --font-content: "Source Sans Pro", sans-serif;
+}
+
+/* ===== FONT SYSTEM ===== */
+
+/* Base font settings */
+* {
+  font-family: var(--font-body);
+  font-feature-settings: "liga", "kern";
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Headings - Elegant serif for impact */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.heading,
+.title {
+  font-family: var(--font-heading) !important;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+h2 {
+  font-size: 2rem;
+  font-weight: 600;
+}
+h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+h4 {
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+
+/* Body text - Clean and readable */
+body,
+p,
+div,
+span,
+.body-text,
+.description {
+  font-family: var(--font-content) !important;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}
+
+/* UI Elements - Modern and clean */
+button,
+.btn,
+.button,
+nav,
+.navbar,
+.nav-item,
+.tab,
+.menu,
+.dropdown,
+input,
+textarea,
+select,
+.form-control,
+.input {
+  font-family: var(--font-ui) !important;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* Labels and small text */
+label,
+.label,
+.tag,
+.badge,
+.caption,
+.small,
+small {
+  font-family: var(--font-ui) !important;
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Brand/Logo text */
+.logo,
+.brand,
+.site-title {
+  font-family: var(--font-heading) !important;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Code and monospace */
+code,
+pre,
+.code {
+  font-family: "Monaco", "Menlo", "Consolas", monospace !important;
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+/* Specific component overrides */
+.complaint-title {
+  font-family: var(--font-heading) !important;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.complaint-description {
+  font-family: var(--font-content) !important;
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+.nav-link,
+.navigation {
+  font-family: var(--font-ui) !important;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+/* ===== GOLDEN/BROWN COLOR SYSTEM ===== */
+
+/* Global color overrides for consistent theming */
+
+/* Replace old colors with new golden/brown palette */
+[style*="#0f70cd"],
+[style*="#6d94c5"],
+[style*="#7a1cac"],
+[style*="#7A1CAC"],
+.text-blue-600,
+.bg-blue-600,
+.border-blue-500 {
+  color: #4c3d3d !important;
+  background-color: #4c3d3d !important;
+  border-color: #4c3d3d !important;
+}
+
+/* Replace secondary colors */
+[style*="#ec8b0a"],
+[style*="#e8dfca"],
+[style*="#ad49e1"],
+[style*="#AD49E1"] {
+  background-color: #c07f00 !important;
+  color: #ffffff !important;
+  border-color: #ffd95a !important;
+}
+
+/* Replace light backgrounds */
+[style*="#f5efe6"],
+[style*="#cbdceb"],
+[style*="#ebd3f8"],
+[style*="#EBD3F8"] {
+  background-color: #ffd95a !important;
+  border-color: #c07f00 !important;
+}
+
+/* Update form inputs and search bars */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+textarea {
+  background-color: #ffffff !important;
+  border-color: #ffd95a !important;
+  color: #4c3d3d !important;
+}
+
+input:focus,
+textarea:focus {
+  border-color: #4c3d3d !important;
+  box-shadow: 0 0 0 2px rgba(76, 61, 61, 0.2) !important;
+}
+
+/* Update buttons */
+.btn-primary {
+  background-color: #4c3d3d !important;
+  border-color: #4c3d3d !important;
+  color: #ffffff !important;
+}
+
+.btn-secondary {
+  background-color: #c07f00 !important;
+  color: #ffffff !important;
+  border-color: #ffd95a !important;
+}
+
+/* Update cards and containers */
+.bg-white {
+  background-color: #ffffff !important;
+}
+
+/* Update text colors */
+.text-gray-900 {
+  color: #4c3d3d !important;
+}
+
+.text-gray-700 {
+  color: rgba(76, 61, 61, 0.8) !important;
+}
+
+/* Black text for good readability */
+.text-black {
+  color: #000000 !important;
+}
+
+/* Update shadows and borders */
+.shadow-lg,
+.shadow-xl {
+  box-shadow: 0 10px 25px -5px rgba(255, 217, 90, 0.4),
+    0 4px 6px -2px rgba(255, 217, 90, 0.2) !important;
+}
+
+/* Update background gradients */
+[style*="linear-gradient"] {
+  background: linear-gradient(
+    135deg,
+    #ffd95a 0%,
+    #c07f00 50%,
+    #4c3d3d 100%
+  ) !important;
+}
