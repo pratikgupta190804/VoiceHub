@@ -9,7 +9,7 @@ import {
   FaArrowDown,
   FaMapMarkerAlt,
   FaShare,
-  FaBookmark,
+  FaComment,
   FaFilter,
   FaSearch,
   FaPlus,
@@ -18,14 +18,18 @@ import {
   FaChartLine,
   FaMap,
 } from "react-icons/fa";
+import { useComplaintStore } from "../store/useComplaintStore";
+import ComplaintCard from "../Components/ComplaintCard";
 
 const HomePage = () => {
   const { authUser } = useStoreAuth();
-  const [activeFilter, setActiveFilter] = useState("trending");
+  const [activeFilter, setActiveFilter] = useState("recent");
   const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const filterDropdownRef = useRef(null);
+
+  const { isFetchingComplains, allcomplaints, getAllComplaints } =
+    useComplaintStore();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -44,112 +48,46 @@ const HomePage = () => {
     };
   }, []);
 
-  console.log("Auth User:", authUser);
+  useEffect(() => {
+    getAllComplaints();
+  }, [getAllComplaints]);
 
-  // Enhanced sample complaint data
-  const [complaints] = useState([
-    {
-      _id: "1",
-      title: "Large pothole causing traffic issues",
-      description:
-        "A massive pothole has formed on the main road near the bus stop, causing vehicles to swerve dangerously. This has been an ongoing issue for over 2 weeks now.",
-      lat: 19.076,
-      lng: 72.8777,
-      address: "Linking Road, Bandra West, Mumbai, Maharashtra 400050, India",
-      media: [
-        "https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=500&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=500&h=400&fit=crop",
-        "https://sample-videos.com/zip/10/mp4/SampleVideo_360x240_1mb.mp4",
-      ],
-      upvotes: 45,
-      downvotes: 3,
-      userHasVoted: null,
-      createdAt: "2024-03-15T10:30:00Z",
-      status: "pending",
-      category: "infrastructure",
-      priority: "high",
-    },
-    {
-      _id: "2",
-      title: "Broken street light creating safety hazard",
-      description:
-        "The main street light has been broken for 5 days, making it dangerous for pedestrians at night. Multiple accidents have been reported.",
-      lat: 19.076,
-      lng: 72.8777,
-      address: "Hill Road, Bandra West, Mumbai, Maharashtra 400050, India",
-      media: [
-        "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1514905552197-0610a4d8fd73?w=500&h=400&fit=crop",
-      ],
-      upvotes: 32,
-      downvotes: 1,
-      userHasVoted: "up",
-      createdAt: "2024-03-14T15:20:00Z",
-      status: "in-progress",
-      category: "safety",
-      priority: "urgent",
-    },
-    {
-      _id: "3",
-      title: "Garbage not collected for a week",
-      description:
-        "Waste management has not collected garbage from our society for over a week. The bins are overflowing and creating hygiene issues.",
-      lat: 19.0761,
-      lng: 72.8778,
-      address: "Carter Road, Bandra West, Mumbai, Maharashtra 400050, India",
-      media: [
-        "https://images.unsplash.com/photo-1558618666-f3c94df2df82?w=500&h=400&fit=crop",
-      ],
-      upvotes: 28,
-      downvotes: 5,
-      userHasVoted: null,
-      createdAt: "2024-03-13T09:15:00Z",
-      status: "pending",
-      category: "sanitation",
-      priority: "medium",
-    },
-    {
-      _id: "4",
-      title: "Water logging during monsoon",
-      description:
-        "Severe water logging occurs every monsoon season at this junction, disrupting daily life and business activities.",
-      lat: 19.0759,
-      lng: 72.8776,
-      address: "Turner Road, Bandra West, Mumbai, Maharashtra 400050, India",
-      media: [
-        "https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=500&h=400&fit=crop",
-        "https://images.unsplash.com/photo-1573160813959-df05f9cec837?w=500&h=400&fit=crop",
-      ],
-      upvotes: 67,
-      downvotes: 8,
-      userHasVoted: null,
-      createdAt: "2024-03-12T14:45:00Z",
-      status: "resolved",
-      category: "infrastructure",
-      priority: "high",
-    },
-  ]);
+  console.log("Auth User:", authUser);
+  console.log("All complaints:", allcomplaints, "Type:", typeof allcomplaints);
 
   const filterOptions = [
-    { key: "trending", label: "Trending", icon: FaChartLine },
     { key: "recent", label: "Recent", icon: FaClock },
+    { key: "trending", label: "Trending", icon: FaChartLine },
   ];
 
-  const filteredComplaints = complaints.filter((complaint) => {
+  // Ensure allcomplaints is an array before filtering
+  const complaintsArray = Array.isArray(allcomplaints) ? allcomplaints : [];
+
+  // First filter by search term
+  const searchFilteredComplaints = complaintsArray.filter((complaint) => {
     const matchesSearch =
       complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       complaint.description.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch;
+  });
 
-    if (!matchesSearch) return false;
-
+  // Then sort based on active filter
+  const filteredComplaints = [...searchFilteredComplaints].sort((a, b) => {
     switch (activeFilter) {
+      case "trending": {
+        // Sort by upvote count (highest first)
+        const aUpvotes = a.upvote || 0;
+        const bUpvotes = b.upvote || 0;
+        return bUpvotes - aUpvotes;
+      }
+
       case "recent":
-        return true; // Already sorted by date
-      case "urgent":
-        return complaint.priority === "urgent" || complaint.priority === "high";
-      case "trending":
-      default:
-        return complaint.upvotes > 20; // High engagement posts
+      default: {
+        // Sort by creation date (most recent first) - this is already the default from backend
+        const aDate = new Date(a.createdAt || 0);
+        const bDate = new Date(b.createdAt || 0);
+        return bDate - aDate;
+      }
     }
   });
 
@@ -788,8 +726,36 @@ const HomePage = () => {
       {/* Main Content */}
       {authUser ? (
         <div className="max-w-4xl mx-auto px-4 py-6">
+          {/* Results Summary */}
+          {!isFetchingComplains && (
+            <div className="mb-6">
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>
+                  {filteredComplaints.length} complaint
+                  {filteredComplaints.length !== 1 ? "s" : ""} found
+                  {searchTerm && ` for "${searchTerm}"`}
+                </span>
+                <span className="flex items-center gap-2">
+                  <span>Sorted by:</span>
+                  <span
+                    className="px-2 py-1 rounded-full text-xs font-medium"
+                    style={{
+                      backgroundColor:
+                        activeFilter === "trending" ? "#0f70cd" : "#ec8b0a",
+                      color: "white",
+                    }}
+                  >
+                    {activeFilter === "trending"
+                      ? "Most Upvoted"
+                      : "Most Recent"}
+                  </span>
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Complaints Grid */}
-          {isLoading ? (
+          {isFetchingComplains ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
               {Array.from({ length: 4 }, (_, i) => (
                 <LoadingCard key={i} />
@@ -806,7 +772,7 @@ const HomePage = () => {
           )}
 
           {/* Empty State */}
-          {!isLoading && filteredComplaints.length === 0 && (
+          {!isFetchingComplains && filteredComplaints.length === 0 && (
             <div className="text-center py-12 animate-fade-in">
               <div
                 className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6"
@@ -825,23 +791,16 @@ const HomePage = () => {
               <p className="text-gray-600 mb-6">
                 Try adjusting your search or filter criteria
               </p>
-              <button
-                className="text-white px-6 py-3 rounded-xl font-medium transition-all duration-200 hover:opacity-80"
-                style={{ backgroundColor: "#0f70cd" }}
-              >
-                Report New Issue
-              </button>
             </div>
           )}
 
           {/* Load More Button */}
-          {!isLoading && filteredComplaints.length > 0 && (
+          {!isFetchingComplains && filteredComplaints.length > 0 && (
             <div className="text-center mt-8">
               <button
                 onClick={() => {
-                  setIsLoading(true);
-                  // Simulate loading
-                  setTimeout(() => setIsLoading(false), 2000);
+                  // Refresh complaints data
+                  getAllComplaints();
                 }}
                 className="text-white border px-8 py-4 rounded-xl font-medium transition-all duration-200 hover:opacity-80 transform hover:scale-105"
                 style={{
@@ -867,298 +826,16 @@ const HomePage = () => {
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
-const ComplaintCard = ({ complaint }) => {
-  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-  const [userVote, setUserVote] = useState(complaint.userHasVoted);
-  const [votes, setVotes] = useState({
-    up: complaint.upvotes,
-    down: complaint.downvotes,
-  });
-
-  const nextMedia = () => {
-    setCurrentMediaIndex((prev) =>
-      prev === complaint.media.length - 1 ? 0 : prev + 1
-    );
-  };
-
-  const prevMedia = () => {
-    setCurrentMediaIndex((prev) =>
-      prev === 0 ? complaint.media.length - 1 : prev - 1
-    );
-  };
-
-  const handleVote = (voteType) => {
-    if (userVote === voteType) {
-      // Remove vote
-      setVotes((prev) => ({
-        ...prev,
-        [voteType]: prev[voteType] - 1,
-      }));
-      setUserVote(null);
-    } else {
-      // Add new vote and remove old vote if exists
-      setVotes((prev) => {
-        const newVotes = { ...prev };
-        if (userVote) {
-          newVotes[userVote] -= 1;
-        }
-        newVotes[voteType] += 1;
-        return newVotes;
-      });
-      setUserVote(voteType);
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "resolved":
-        return "text-white border-transparent";
-      case "in-progress":
-        return "text-white border-transparent";
-      case "pending":
-        return "text-white border-transparent";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200";
-    }
-  };
-
-  const getStatusBgColor = (status) => {
-    switch (status) {
-      case "resolved":
-        return "#0f70cd";
-      case "in-progress":
-        return "#ec8b0a";
-      case "pending":
-        return "#6c757d";
-      default:
-        return "#f8f9fa";
-    }
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case "urgent":
-        return "#dc3545";
-      case "high":
-        return "#ec8b0a";
-      case "medium":
-        return "#ffc107";
-      case "low":
-        return "#0f70cd";
-      default:
-        return "#6c757d";
-    }
-  };
-
-  const formatTimeAgo = (dateString) => {
-    const now = new Date();
-    const postDate = new Date(dateString);
-    const diffInHours = Math.floor((now - postDate) / (1000 * 60 * 60));
-
-    if (diffInHours < 1) return "Just now";
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays}d ago`;
-    return `${Math.floor(diffInDays / 7)}w ago`;
-  };
-
-  const currentMedia = complaint.media[currentMediaIndex];
-  const isVideo = currentMedia?.includes(".mp4");
-
-  return (
-    <div
-      className="rounded-2xl shadow-sm hover:shadow-lg overflow-hidden border transition-all duration-300 hover:transform hover:-translate-y-1"
-      style={{ backgroundColor: "#ffffff", borderColor: "#0f70cd" }}
-    >
-      {/* Header with Status and Priority */}
-      <div className="flex items-center justify-between p-4 pb-2">
-        <div className="flex items-center space-x-2">
-          <div
-            className="w-3 h-3 rounded-full"
-            style={{ backgroundColor: getPriorityColor(complaint.priority) }}
-          ></div>
-          <span
-            className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-              complaint.status
-            )}`}
-            style={{ backgroundColor: getStatusBgColor(complaint.status) }}
-          >
-            {complaint.status.replace("-", " ")}
-          </span>
-        </div>
-        <span className="text-xs font-medium" style={{ color: "#ec8b0a" }}>
-          {formatTimeAgo(complaint.createdAt)}
-        </span>
-      </div>
-
-      {/* Media Section */}
-      <div className="relative mx-4 mb-4">
-        <div className="aspect-video bg-gray-100 rounded-xl overflow-hidden">
-          {isVideo ? (
-            <video
-              src={currentMedia}
-              controls
-              className="w-full h-full object-cover"
-              poster="/no-video.png"
-            />
-          ) : (
-            <img
-              src={currentMedia}
-              alt="Complaint media"
-              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-              onError={(e) => {
-                e.target.src = "/no-img.png";
-              }}
-            />
-          )}
-        </div>
-
-        {/* Navigation Arrows */}
-        {complaint.media.length > 1 && (
-          <>
-            <button
-              onClick={prevMedia}
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-800 rounded-full p-2 shadow-lg transition-all duration-200 hover:scale-110"
-            >
-              <FaChevronLeft size={14} />
-            </button>
-            <button
-              onClick={nextMedia}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-800 rounded-full p-2 shadow-lg transition-all duration-200 hover:scale-110"
-            >
-              <FaChevronRight size={14} />
-            </button>
-          </>
-        )}
-
-        {/* Media Indicators */}
-        {complaint.media.length > 1 && (
-          <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-1">
-            {complaint.media.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentMediaIndex(index)}
-                className={`w-2 h-2 rounded-full transition-all duration-200 ${
-                  index === currentMediaIndex
-                    ? "bg-white scale-125"
-                    : "bg-white bg-opacity-60 hover:bg-opacity-80"
-                }`}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="px-4 pb-4">
-        {/* Title */}
-        <h2
-          className="font-bold mb-2 text-lg leading-tight line-clamp-2"
-          style={{ color: "#0f70cd" }}
-        >
-          {complaint.title}
-        </h2>
-
-        {/* Description */}
-        <p className="text-gray-700 text-sm mb-4 leading-relaxed line-clamp-3">
-          {complaint.description}
-        </p>
-
-        {/* Location */}
-        <div
-          className="flex items-start space-x-3 mb-4 p-3 rounded-lg"
-          style={{ backgroundColor: "#f8f9fa" }}
-        >
-          <FaMapMarkerAlt
-            size={16}
-            color="#ec8b0a"
-            className="mt-0.5 flex-shrink-0"
-          />
-          <div className="flex-1 min-w-0">
-            <p
-              className="text-sm font-semibold mb-1"
-              style={{ color: "#0f70cd" }}
-            >
-              Location
-            </p>
-            <p className="text-xs text-gray-600 leading-relaxed truncate">
-              {complaint.address}
-            </p>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div
-          className="flex items-center justify-between pt-3 border-t"
-          style={{ borderColor: "#0f70cd" }}
-        >
-          <div className="flex items-center space-x-4">
-            {/* Upvote */}
-            <button
-              onClick={() => handleVote("up")}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 ${
-                userVote === "up"
-                  ? "text-white shadow-sm"
-                  : "text-gray-600 hover:text-white hover:opacity-80"
-              }`}
-              style={{
-                backgroundColor: userVote === "up" ? "#0f70cd" : "transparent",
-                ":hover": { backgroundColor: "#0f70cd" },
-              }}
-            >
-              <FaArrowUp size={16} />
-              <span className="text-sm font-medium">{votes.up}</span>
-            </button>
-
-            {/* Downvote */}
-            <button
-              onClick={() => handleVote("down")}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 ${
-                userVote === "down"
-                  ? "text-white shadow-sm"
-                  : "text-gray-600 hover:text-white hover:opacity-80"
-              }`}
-              style={{
-                backgroundColor:
-                  userVote === "down" ? "#dc3545" : "transparent",
-              }}
-            >
-              <FaArrowDown size={16} />
-              <span className="text-sm font-medium">{votes.down}</span>
-            </button>
-
-            {/* Share */}
-            <button
-              className="p-2 text-gray-600 hover:text-white rounded-lg transition-all duration-200"
-              style={{ ":hover": { backgroundColor: "#0f70cd" } }}
-            >
-              <FaShare size={16} />
-            </button>
-          </div>
-
-          {/* Bookmark */}
-          <button
-            className="p-2 text-gray-600 hover:text-white rounded-lg transition-all duration-200"
-            style={{ ":hover": { backgroundColor: "#ec8b0a" } }}
-          >
-            <FaBookmark size={16} />
-          </button>
-        </div>
-      </div>
 
       {/* Floating Map Button - Bottom Right */}
       <Link
         to="/mapView"
         className="fixed bottom-6 right-6 w-14 h-14 flex items-center justify-center rounded-full shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-3xl group z-50 border-2"
         style={{
-          background: "linear-gradient(135deg, #ec8b0a 0%, #ff9f2e 100%)",
+          background: "linear-gradient(135deg, #ec8b0a 0%, #f59e0b 100%)",
           borderColor: "#ec8b0a",
         }}
-        title="View complaints on map"
+        title="View Map"
       >
         <FaMap
           size={20}

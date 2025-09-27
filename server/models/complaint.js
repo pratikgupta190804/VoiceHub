@@ -3,11 +3,12 @@ const { Schema } = mongoose;
 
 const ComplaintSchema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User' },
-  anonymous: { type: Boolean, default: false },
+  comments: [{ type: Schema.Types.ObjectId, ref: 'Comment' }],
+  upvote: { type: Number, default: 0 },
+  downvote: { type: Number, default: 0 },
   title: { type: String, required: true, trim: true },
   description: { type: String, required: true, trim: true },
   category: { type: String },
-  severity: { type: String, enum: ['low','medium','high','critical'], default: 'low' },
 
   // media field directly inside complaint
   media: [
